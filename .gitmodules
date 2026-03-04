@@ -1,0 +1,9 @@
+[submodule "libs/glfw"]
+	path = libs/glfw
+	url = https://github.com/zig-gamedev/zglfw.git
+[submodule "libs/zopengl"]
+	path = libs/zopengl
+	url = https://github.com/zig-gamedev/zopengl.git
+[submodule "libs/zmath"]
+	path = libs/zmath
+	url = https://github.com/zig-gamedev/zmath.git
