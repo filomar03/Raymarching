@@ -2,8 +2,16 @@
     .name = .Raymarching,
     .version = "0.0.1",
     .fingerprint = 0x461b0134739decd4,
-    .minimum_zig_version = "0.15.02",
-    .dependencies = .{},
+    .minimum_zig_version = "0.15.2",
+    .dependencies = .{
+        .zglfw = .{
+            .url = "https://github.com/zig-gamedev/zglfw/archive/master.tar.gz",
+            .hash = "zglfw-0.10.0-dev-zgVDNIG4IQBWN_sfMD-xfC9bJS2hbBN2W7jNlDLovcdC",
+        },
+        // .zopengl = .{
+        //     .path = "",
+        // },
+    },
     .paths = .{
         "build.zig",
         "build.zig.zon",
