@@ -1,12 +1,28 @@
-const std = @import("std");
 const glfw = @import("zglfw");
+const opengl = @import("zopengl");
 
 pub fn main() !void {
-    var stdout_buffer: [1024]u8 = undefined;
-    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
-    const stdout = &stdout_writer.interface;
+    try glfw.init();
+    defer glfw.terminate();
 
-    try stdout.print("Hello world!\n", .{});
+    const window = try glfw.createWindow(600, 600, "Raymarching demo", null, null);
+    defer window.destroy();
 
-    try stdout.flush(); // Don't forget to flush!
+    glfw.makeContextCurrent(window);
+
+    try opengl.loadCoreProfile(getProcAddress, 4, 0);
+
+    const gl = opengl.bindings;
+
+    while (!window.shouldClose()) {
+        glfw.pollEvents();
+
+        gl.clearBufferfv(gl.COLOR, 0, &[_]gl.Float{ 0.2, 0.4, 0.8, 1.0 });
+
+        window.swapBuffers();
+    }
+}
+
+fn getProcAddress(name: [*:0]const u8) callconv(.c) ?*const anyopaque {
+    return glfw.getProcAddress(name);
 }

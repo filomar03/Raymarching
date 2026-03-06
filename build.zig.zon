@@ -5,12 +5,17 @@
     .minimum_zig_version = "0.15.2",
     .dependencies = .{
         .zglfw = .{
-            .url = "https://github.com/zig-gamedev/zglfw/archive/master.tar.gz",
+            .url = "git+https://github.com/zig-gamedev/zglfw.git#0dd29d8073487c9fe1e45e6b729b3aac271d5a71",
             .hash = "zglfw-0.10.0-dev-zgVDNIG4IQBWN_sfMD-xfC9bJS2hbBN2W7jNlDLovcdC",
         },
-        // .zopengl = .{
-        //     .path = "",
-        // },
+        .zopengl = .{
+            .url = "git+https://github.com/zig-gamedev/zopengl.git#db9d615c742086b39954eef064f957e92dafc7e2",
+            .hash = "zopengl-0.6.0-dev-5-tnz36mDgBuU9pDfag6_B-qCWOJQc5GXiXuZ6z41zQM",
+        },
+        .zmath = .{
+            .url = "git+https://github.com/zig-gamedev/zmath.git#3a5955b2b72cd081563fbb084eff05bffd1e3fbb",
+            .hash = "zmath-0.11.0-dev-wjwivdMsAwD-xaLj76YHUq3t9JDH-X16xuMTmnDzqbu2",
+        },
     },
     .paths = .{
         "build.zig",
