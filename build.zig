@@ -17,6 +17,26 @@ pub fn build(b: *std.Build) void {
     const zglfw_dep = b.dependency("zglfw", .{
         .target = target,
         .optimize = optimize,
+        .shared = b.option(
+            bool,
+            "glfw-shared",
+            "Build GLFW as shared lib",
+        ) orelse false,
+        .x11 = b.option(
+            bool,
+            "glfw-x11",
+            "Whether to build with X11 support (default: false)",
+        ) orelse false,
+        .wayland = b.option(
+            bool,
+            "glfw-wayland",
+            "Whether to build with Wayland support (default: true)",
+        ) orelse true,
+        .import_vulkan = b.option(
+            bool,
+            "glfw-import_vulkan",
+            "Whether to build with external Vulkan dependency (default: false)",
+        ) orelse false,
     });
     exe.root_module.addImport("zglfw", zglfw_dep.module("root"));
 
