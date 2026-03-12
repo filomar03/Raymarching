@@ -8,7 +8,21 @@ const OPENGL_MINOR = 3;
 const WINDOW_WIDTH = 1280;
 const WINDOW_HEIGHT = 720;
 
+const SRC_DIR = "src";
+const SHADER_DIR = "shaders";
+const VERTEX_SHADER_FILE = "vertex.glsl";
+const FRAGMENT_SHADER_FILE = "fragment.glsl";
+const MAX_SHADER_SIZE = 1024 * 1024; // 1 Mib
+
 pub fn main() !void {
+    // Allocator & Stdout
+    const allocator = std.heap.c_allocator;
+
+    var buf: [64]u8 = undefined;
+    var stdout_writer = std.fs.File.stdout().writer(&buf);
+    var stdout = &stdout_writer.interface;
+    _ = &stdout; // autofix
+
     // GLFW init
     try glfw.init();
     defer glfw.terminate();
@@ -17,8 +31,10 @@ pub fn main() !void {
     glfw.windowHint(glfw.WindowHint.context_version_major, OPENGL_MAJOR);
     glfw.windowHint(glfw.WindowHint.context_version_minor, OPENGL_MINOR);
     glfw.windowHint(glfw.WindowHint.opengl_profile, glfw.OpenGLProfile.opengl_core_profile);
+
     const window = try glfw.createWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Raymarching demo", null, null);
     defer window.destroy();
+
     glfw.makeContextCurrent(window);
 
     // Callbacks setup
@@ -28,21 +44,90 @@ pub fn main() !void {
     try opengl.loadCoreProfile(glfw.getProcAddress, OPENGL_MAJOR, OPENGL_MINOR);
     const gl = opengl.bindings;
 
-    var r: gl.Float = 0;
-    var g: gl.Float = 0;
-    var b: gl.Float = 0;
+    // Load shaders from file
+    const shader_path = try std.fs.path.join(allocator, &[_][]const u8{SRC_DIR, SHADER_DIR});
+    defer allocator.free(shader_path);
+    var shader_dir = try std.fs.cwd().openDir(shader_path, .{});
+    defer shader_dir.close();
+    const vert_src = try shader_dir.readFileAllocOptions(allocator, VERTEX_SHADER_FILE, MAX_SHADER_SIZE, null, .of(u8), 0);
+    defer allocator.free(vert_src);
+    const frag_src = try shader_dir.readFileAllocOptions(allocator, FRAGMENT_SHADER_FILE, MAX_SHADER_SIZE, null, .of(u8), 0);
+    defer allocator.free(frag_src);
+    // Use arena alloc?
+
+    // Setup quad
+    const vertices = [_]gl.Float{
+        -1.0, -1.0,
+        -1.0,  1.0,
+         1.0,  1.0,
+
+         1.0,  1.0,
+         1.0, -1.0,
+        -1.0, -1.0,
+    };
+
+    var vbo: gl.Uint = undefined;
+    var vao: gl.Uint = undefined;
+
+    gl.genBuffers(1, @ptrCast(&vbo));
+    gl.genVertexArrays(1, @ptrCast(&vao));
+
+    defer gl.deleteBuffers(1, @ptrCast(&vbo));
+    defer gl.deleteVertexArrays(1, @ptrCast(&vao));
+
+    // bindare prima vao?
+    gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+    gl.bufferData(gl.ARRAY_BUFFER, @sizeOf(@TypeOf(vertices)), &vertices, gl.STATIC_DRAW);
+
+    gl.bindVertexArray(vao);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, gl.FALSE, @sizeOf([2]gl.Float), @ptrFromInt(0));
+    gl.enableVertexAttribArray(0);
+
+    // Setup shaders
+    const vert_shad = gl.createShader(gl.VERTEX_SHADER);
+    const frag_shad = gl.createShader(gl.FRAGMENT_SHADER);
+
+    defer gl.deleteShader(vert_shad);
+    defer gl.deleteShader(frag_shad);
+
+    gl.shaderSource(vert_shad, 1, @ptrCast(&vert_src), null); // togliere sentinella a passare len corretta?
+    gl.shaderSource(frag_shad, 1, @ptrCast(&frag_src), null);
+
+    gl.compileShader(vert_shad);
+    gl.compileShader(frag_shad);
+
+    var shader_compiled: gl.Int = undefined;
+    gl.getShaderiv(vert_shad, gl.COMPILE_STATUS, &shader_compiled);
+    if (shader_compiled != gl.TRUE) {
+        @panic("vertex shader compile error");
+    }
+    gl.getShaderiv(frag_shad, gl.COMPILE_STATUS, &shader_compiled);
+    if (shader_compiled != gl.TRUE) {
+        @panic("fragment shader compile error");
+    }
+
+    const program = gl.createProgram();
+
+    defer gl.deleteProgram(program);
+
+    gl.attachShader(program, vert_shad);
+    gl.attachShader(program, frag_shad);
+
+    gl.linkProgram(program);
+
+    var program_linked: gl.Int = undefined;
+    gl.getProgramiv(program, gl.LINK_STATUS, &program_linked);
+    if (program_linked != gl.TRUE) {
+        @panic("program link error");
+    }
+
+    gl.useProgram(program);
 
     // Render loop
     while (!window.shouldClose()) {
         glfw.pollEvents();
 
-        r += 0.001;
-        g += 0.002;
-        b += 0.003;
-
-        gl.clearBufferfv(gl.COLOR, 0, &[_]gl.Float{ @rem(r, 1), @rem(g, 1), @rem(b, 1), 1.0 });
-
-        gl.flush();
+        gl.drawArrays(gl.TRIANGLES, 0, vertices.len / 2);
 
         window.swapBuffers();
     }
@@ -52,5 +137,5 @@ fn resizeCallback(window: *glfw.Window, width: c_int, height: c_int) callconv(.c
     _ = window;
     _ = width;
     _ = height;
-    @panic("Framebuffer resize callbakc not implemente");
+    @panic("Framebuffer resize callback not implemented");
 }
