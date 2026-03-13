@@ -1,6 +1,7 @@
 const std = @import("std");
 const glfw = @import("zglfw");
 const opengl = @import("zopengl");
+const engine = @import("engine/engine.zig");
 
 const OPENGL_MAJOR = 3;
 const OPENGL_MINOR = 3;
@@ -18,23 +19,21 @@ const INFO_LOG_MAX = 512;
 
 const gl = opengl.bindings;
 
+var state: engine.EngineState = .{};
+
 pub fn main() !void {
-    // Allocator & Stdout
+    // Allocator & Console
     var gpa: std.heap.DebugAllocator(.{}) = .init;
     const allocator = gpa.allocator();
 
     var buf: [64]u8 = undefined;
-    var stdout_writer = std.fs.File.stdout().writer(&buf);
-    var stdout = &stdout_writer.interface;
-    var stderr_writer = std.fs.File.stderr().writer(&buf);
-    var stderr = &stderr_writer.interface;
-    _ = &stdout; // autofix
+    state.console = .init(&buf);
+    var stderr = state.console.writer(engine.ConsoleInterface.Kind.STDERR);
 
-    // GLFW init
+    // GLFW & Context init
     try glfw.init();
     defer glfw.terminate();
 
-    // Window & Context creation
     glfw.windowHint(glfw.WindowHint.context_version_major, OPENGL_MAJOR);
     glfw.windowHint(glfw.WindowHint.context_version_minor, OPENGL_MINOR);
     glfw.windowHint(glfw.WindowHint.opengl_profile, glfw.OpenGLProfile.opengl_core_profile);
@@ -44,10 +43,9 @@ pub fn main() !void {
 
     glfw.makeContextCurrent(window);
 
-    // Callbacks setup
     _ = glfw.setFramebufferSizeCallback(window, &fbResizeCallback);
+    _ = glfw.setScrollCallback(window, &scrollCallback);
 
-    // Loading OpenGL
     try opengl.loadCoreProfile(glfw.getProcAddress, OPENGL_MAJOR, OPENGL_MINOR);
 
     var fb_width: c_int = undefined;
@@ -55,20 +53,7 @@ pub fn main() !void {
     glfw.getFramebufferSize(window, &fb_width, &fb_height);
     gl.viewport(0, 0, fb_width, fb_height);
 
-    // Load shaders from file
-    const shader_path = try std.fs.path.join(allocator, &[_][]const u8{SRC_DIR, SHADER_DIR});
-    defer allocator.free(shader_path);
-
-    var shader_dir = try std.fs.cwd().openDir(shader_path, .{});
-    defer shader_dir.close();
-
-    const vert_src = try shader_dir.readFileAllocOptions(allocator, VERTEX_SHADER_FILE, MAX_SHADER_SIZE, null, .of(u8), 0);
-    defer allocator.free(vert_src);
-
-    const frag_src = try shader_dir.readFileAllocOptions(allocator, FRAGMENT_SHADER_FILE, MAX_SHADER_SIZE, null, .of(u8), 0);
-    defer allocator.free(frag_src);
-
-    // Setup buffers
+    // Setup pipeline
     const VERT_VEC_SIZE = 3;
     const vertices = [_]gl.Float{
         -1.0, -1.0, -1.0,
@@ -98,6 +83,32 @@ pub fn main() !void {
     gl.enableVertexAttribArray(0);
 
     // Setup shaders
+    const shader_path = try std.fs.path.join(allocator, &[_][]const u8{SRC_DIR, SHADER_DIR});
+    defer allocator.free(shader_path);
+
+    var shader_dir = try std.fs.cwd().openDir(shader_path, .{});
+    defer shader_dir.close();
+
+    const vert_src = try shader_dir.readFileAllocOptions(
+        allocator,
+        VERTEX_SHADER_FILE,
+        MAX_SHADER_SIZE,
+        null,
+        .of(u8),
+        0
+    );
+    defer allocator.free(vert_src);
+
+    const frag_src = try shader_dir.readFileAllocOptions(
+        allocator,
+        FRAGMENT_SHADER_FILE,
+        MAX_SHADER_SIZE,
+        null,
+        .of(u8),
+        0
+    );
+    defer allocator.free(frag_src);
+
     const vert_shad = gl.createShader(gl.VERTEX_SHADER);
     defer gl.deleteShader(vert_shad);
     const frag_shad = gl.createShader(gl.FRAGMENT_SHADER);
@@ -147,8 +158,14 @@ pub fn main() !void {
 
     gl.useProgram(program);
 
-    const uRes_loc = gl.getUniformLocation(program, "uResolution");
-    gl.uniform2f(uRes_loc, @floatFromInt(fb_width), @floatFromInt(fb_height));
+    state.uniforms = .{
+        .resolution = gl.getUniformLocation(program, "uResolution"),
+        .time = gl.getUniformLocation(program, "uTime"),
+        .mouse = gl.getUniformLocation(program, "uMouse"),
+        .wheel = gl.getUniformLocation(program, "uWheel"),
+    };
+
+    gl.uniform2f(state.uniforms.?.resolution, @floatFromInt(fb_width), @floatFromInt(fb_height));
 
     // Render loop
     while (!window.shouldClose()) {
@@ -156,6 +173,8 @@ pub fn main() !void {
 
         gl.clearColor(0.0, 0.0, 0.0, 1.0);
         gl.clear(gl.COLOR_BUFFER_BIT);
+
+        gl.uniform1f(state.uniforms.?.time, @floatCast(glfw.getTime()));
 
         // gl.useProgram(program); // Should i call these?
         // gl.bindVertexArray(vao);
@@ -168,4 +187,14 @@ pub fn main() !void {
 fn fbResizeCallback(window: *glfw.Window, width: c_int, height: c_int) callconv(.c) void {
     _ = window;
     gl.viewport(0, 0, width, height);
+}
+
+fn scrollCallback(window: *glfw.Window, x_offset: f64 , y_offset: f64) callconv(.c) void {
+    _ = window;
+    _ = x_offset;
+    gl.uniform1f(state.uniforms.?.wheel, @floatCast(y_offset));
+    // TODO: capire perche non printa (probalminte c'e qualcosa di costante che non dovrebbe esserlo o ountatori a memoria non valida)
+    const stderr = state.console.writer(engine.ConsoleInterface.Kind.STDERR);
+    try stderr.print("wheel: {}", .{y_offset});
+    try stderr.flush();
 }

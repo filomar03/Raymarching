@@ -1,7 +1,6 @@
 #version 330 core
 
 #define FOV 70
-#define CAM_Z_OFFSET 1
 
 #define MAX_STEPS 80
 #define HIT_DISTANCE 0.001
@@ -9,6 +8,8 @@
 
 uniform vec2 uResolution;
 uniform float uTime;
+uniform vec2 uMouse;
+uniform float uWheel;
 out vec4 FragColor;
 
 float sdSphere(vec3 center, float radius) {
@@ -23,9 +24,13 @@ float map(vec3 p) {
 void main()
 {
     vec2 uv = gl_FragCoord.xy / uResolution * 2.0 - 1;
+    float cam_z_offset = 1.0 / tan(radians(FOV));
     vec3 origin = vec3(uv.xy, 0);
-    vec3 camera = vec3(0, 0, -CAM_Z_OFFSET);
+    vec3 camera = vec3(0, 0, -cam_z_offset);
     vec3 ray = normalize(origin - camera);
+
+    // FragColor = vec4(ray.xy, 0, 1);
+    // return;
 
     vec3 p = origin;
     float distance = 0.0;
@@ -39,7 +44,7 @@ void main()
         p += ray * d;
 
         step += 1;
-        if (step >= MAX_STEPS) {
+        if (step > MAX_STEPS) {
             break;
         }
     }
