@@ -16,6 +16,8 @@ const MAX_SHADER_SIZE = 1024 * 1024; // 1 Mib
 
 const INFO_LOG_MAX = 512;
 
+const gl = opengl.bindings;
+
 pub fn main() !void {
     // Allocator & Stdout
     var gpa: std.heap.DebugAllocator(.{}) = .init;
@@ -43,17 +45,14 @@ pub fn main() !void {
     glfw.makeContextCurrent(window);
 
     // Callbacks setup
-    // glfw.setFramebufferSizeCallback(window, &resizeCallback);
+    _ = glfw.setFramebufferSizeCallback(window, &fbResizeCallback);
 
     // Loading OpenGL
     try opengl.loadCoreProfile(glfw.getProcAddress, OPENGL_MAJOR, OPENGL_MINOR);
-    const gl = opengl.bindings;
 
     var fb_width: c_int = undefined;
     var fb_height: c_int = undefined;
     glfw.getFramebufferSize(window, &fb_width, &fb_height);
-    try stderr.print("{} {}", .{fb_width, fb_height});
-    try stderr.flush();
     gl.viewport(0, 0, fb_width, fb_height);
 
     // Load shaders from file
@@ -69,11 +68,16 @@ pub fn main() !void {
     const frag_src = try shader_dir.readFileAllocOptions(allocator, FRAGMENT_SHADER_FILE, MAX_SHADER_SIZE, null, .of(u8), 0);
     defer allocator.free(frag_src);
 
-    // Setup quad
+    // Setup buffers
+    const VERT_VEC_SIZE = 3;
     const vertices = [_]gl.Float{
-         1.0,  1.0,  0.0,
-        -1.0,  1.0,  0.0,
-        -1.0, -1.0,  0.0
+        -1.0, -1.0, -1.0,
+        -1.0,  1.0, -1.0,
+         1.0,  1.0, -1.0,
+
+        -1.0, -1.0, -1.0,
+         1.0,  1.0, -1.0,
+         1.0, -1.0, -1.0,
     };
 
     var vbo: gl.Uint = undefined;
@@ -90,7 +94,7 @@ pub fn main() !void {
 
     gl.bufferData(gl.ARRAY_BUFFER, @sizeOf(@TypeOf(vertices)), &vertices, gl.STATIC_DRAW);
 
-    gl.vertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, @sizeOf([3]gl.Float), @ptrFromInt(0));
+    gl.vertexAttribPointer(0, VERT_VEC_SIZE, gl.FLOAT, gl.FALSE, @sizeOf([VERT_VEC_SIZE]gl.Float), @ptrFromInt(0));
     gl.enableVertexAttribArray(0);
 
     // Setup shaders
@@ -102,7 +106,6 @@ pub fn main() !void {
     gl.shaderSource(vert_shad, 1, @ptrCast(&vert_src), null);
     gl.shaderSource(frag_shad, 1, @ptrCast(&frag_src), null);
 
-    // Compile shaders
     var info_log: [INFO_LOG_MAX:0]u8 = undefined;
     var log_len: c_int = undefined;
     var shader_compiled: gl.Int = undefined;
@@ -144,6 +147,9 @@ pub fn main() !void {
 
     gl.useProgram(program);
 
+    const uRes_loc = gl.getUniformLocation(program, "uResolution");
+    gl.uniform2f(uRes_loc, @floatFromInt(fb_width), @floatFromInt(fb_height));
+
     // Render loop
     while (!window.shouldClose()) {
         glfw.pollEvents();
@@ -151,14 +157,15 @@ pub fn main() !void {
         gl.clearColor(0.0, 0.0, 0.0, 1.0);
         gl.clear(gl.COLOR_BUFFER_BIT);
 
-        // gl.useProgram(program);
+        // gl.useProgram(program); // Should i call these?
         // gl.bindVertexArray(vao);
-        gl.drawArrays(gl.TRIANGLES, 0, vertices.len / 3);
+        gl.drawArrays(gl.TRIANGLES, 0, vertices.len / VERT_VEC_SIZE);
 
         window.swapBuffers();
     }
 }
 
-// fn resizeCallback(window: *glfw.Window, width: c_int, height: c_int) callconv(.c) void {
-
-// }
+fn fbResizeCallback(window: *glfw.Window, width: c_int, height: c_int) callconv(.c) void {
+    _ = window;
+    gl.viewport(0, 0, width, height);
+}
