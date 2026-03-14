@@ -197,6 +197,8 @@ pub fn main() !void {
 
 fn fbResizeCallback(window: *glfw.Window, width: c_int, height: c_int) callconv(.c) void {
     _ = window;
+    const pipeline = &(state.pipeline orelse return);
+    gl.uniform2f(pipeline.uniforms.resolution, @floatFromInt(width), @floatFromInt(height));
     gl.viewport(0, 0, width, height);
 }
 

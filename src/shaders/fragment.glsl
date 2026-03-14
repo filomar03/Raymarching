@@ -2,7 +2,7 @@
 
 #define MAX_STEPS 80
 #define HIT_DISTANCE 0.001
-#define MAX_DISTANCE 20.0
+#define MAX_DISTANCE 50.0
 
 uniform vec2 uResolution;
 uniform float uTime;
@@ -15,8 +15,11 @@ float sdSphere(vec3 center, float radius) {
 }
 
 float map(vec3 p) {
-    vec3 sphere_origin = vec3(0, 0, 10);
-    return sdSphere(sphere_origin - p, 3.0 + abs(sin(uTime) * 5.0));
+    vec3 sp1_origin = vec3(-5, 0, 10);
+    vec3 sp2_origin = vec3(10, 0, 20);
+    float sp1 = sdSphere(sp1_origin - p, 3.0 + abs(sin(uTime) * 5.0));
+    float sp2 = sdSphere(sp2_origin - p, 8);
+    return min(sp1, sp2);
 }
 
 void main()
