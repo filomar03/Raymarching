@@ -1,8 +1,9 @@
 const std = @import("std");
+const glm = @import("glm.zig");
 
 pub const EngineState = struct {
     console: ConsoleInterface = .{},
-    uniforms: ?UniformLocations = null,
+    pipeline: ?Pipeline = null,
 };
 
 pub const ConsoleInterface = struct {
@@ -18,8 +19,6 @@ pub const ConsoleInterface = struct {
 
     pub fn init(buf: []u8) Self {
         return .{
-            // TODO: capire se il buffer viene copiato o preso l'indirizzo
-            // TODO: capire se con anytype viene fatto il check del tipo
             .stdout = std.fs.File.stdout().writer(buf),
             .stderr = std.fs.File.stderr().writer(buf)
         };
@@ -27,15 +26,32 @@ pub const ConsoleInterface = struct {
 
     pub fn writer(self: *Self, console: Kind) *std.Io.Writer {
         return &switch (console) {
-            .STDOUT => self.stdout,
-            .STDERR => self.stderr,
-        }.?.interface;
+            .STDOUT => self.stdout.?,
+            .STDERR => self.stderr.?,
+        }.interface;
     }
 };
 
-pub const UniformLocations = struct {
-    resolution: c_int,
-    time: c_int,
-    mouse: c_int,
-    wheel: c_int,
+pub const Pipeline = struct {
+    program: *const c_uint,
+    uniforms: UniformLocations,
+
+    const UniformLocations = struct {
+        resolution: c_int,
+        time: c_int,
+        mouse: c_int,
+        fov: c_int,
+    };
 };
+
+// const DEF_FOV = 70.0;
+
+// pub const CameraOptions = struct {
+//     def_fov: f32 = DEF_FOV,
+// };
+
+// pub const Camera = fn (comptime options: CameraOptions) type {
+//     return struct {
+
+//     }
+// };

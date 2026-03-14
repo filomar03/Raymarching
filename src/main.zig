@@ -17,6 +17,11 @@ const MAX_SHADER_SIZE = 1024 * 1024; // 1 Mib
 
 const INFO_LOG_MAX = 512;
 
+const FOV = 70.0;
+const FOV_SENS = 1;
+const MIN_FOV = 30.0;
+const MAX_FOV = 120.0;
+
 const gl = opengl.bindings;
 
 var state: engine.EngineState = .{};
@@ -44,7 +49,7 @@ pub fn main() !void {
     glfw.makeContextCurrent(window);
 
     _ = glfw.setFramebufferSizeCallback(window, &fbResizeCallback);
-    _ = glfw.setScrollCallback(window, &scrollCallback);
+    _ = glfw.setScrollCallback(window, &adjustFov);
 
     try opengl.loadCoreProfile(glfw.getProcAddress, OPENGL_MAJOR, OPENGL_MINOR);
 
@@ -158,14 +163,20 @@ pub fn main() !void {
 
     gl.useProgram(program);
 
-    state.uniforms = .{
-        .resolution = gl.getUniformLocation(program, "uResolution"),
-        .time = gl.getUniformLocation(program, "uTime"),
-        .mouse = gl.getUniformLocation(program, "uMouse"),
-        .wheel = gl.getUniformLocation(program, "uWheel"),
+    const pipeline: engine.Pipeline = .{
+        .program = &program,
+        .uniforms = .{
+            .resolution = gl.getUniformLocation(program, "uResolution"),
+            .time = gl.getUniformLocation(program, "uTime"),
+            .mouse = gl.getUniformLocation(program, "uMouse"),
+            .fov = gl.getUniformLocation(program, "uFov"),
+        }
     };
 
-    gl.uniform2f(state.uniforms.?.resolution, @floatFromInt(fb_width), @floatFromInt(fb_height));
+    state.pipeline = pipeline;
+
+    gl.uniform2f(pipeline.uniforms.resolution, @floatFromInt(fb_width), @floatFromInt(fb_height));
+    gl.uniform1f(pipeline.uniforms.fov, FOV);
 
     // Render loop
     while (!window.shouldClose()) {
@@ -174,7 +185,7 @@ pub fn main() !void {
         gl.clearColor(0.0, 0.0, 0.0, 1.0);
         gl.clear(gl.COLOR_BUFFER_BIT);
 
-        gl.uniform1f(state.uniforms.?.time, @floatCast(glfw.getTime()));
+        gl.uniform1f(pipeline.uniforms.time, @floatCast(glfw.getTime()));
 
         // gl.useProgram(program); // Should i call these?
         // gl.bindVertexArray(vao);
@@ -189,12 +200,16 @@ fn fbResizeCallback(window: *glfw.Window, width: c_int, height: c_int) callconv(
     gl.viewport(0, 0, width, height);
 }
 
-fn scrollCallback(window: *glfw.Window, x_offset: f64 , y_offset: f64) callconv(.c) void {
+fn adjustFov(window: *glfw.Window, x_offset: f64 , y_offset: f64) callconv(.c) void {
     _ = window;
     _ = x_offset;
-    gl.uniform1f(state.uniforms.?.wheel, @floatCast(y_offset));
-    // TODO: capire perche non printa (probalminte c'e qualcosa di costante che non dovrebbe esserlo o ountatori a memoria non valida)
+    var fov: f32 = undefined;
+    const pipeline = &(state.pipeline orelse return);
+    gl.getUniformfv(pipeline.program.*, pipeline.uniforms.fov, &fov);
+    fov = std.math.clamp(fov + @as(f32, @floatCast(FOV_SENS * -y_offset)), MIN_FOV, MAX_FOV);
+    gl.uniform1f(pipeline.uniforms.fov, fov);
+
     const stderr = state.console.writer(engine.ConsoleInterface.Kind.STDERR);
-    try stderr.print("wheel: {}", .{y_offset});
-    try stderr.flush();
+    stderr.print("FOV: {}\n", .{fov}) catch unreachable;
+    stderr.flush() catch unreachable;
 }
