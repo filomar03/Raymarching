@@ -17,7 +17,7 @@ const MAX_SHADER_SIZE = 1024 * 1024; // 1 Mib
 
 const INFO_LOG_MAX = 512;
 
-const FOV = 70.0;
+const FOV = 50.0;
 const FOV_SENS = 1;
 const MIN_FOV = 30.0;
 const MAX_FOV = 120.0;
