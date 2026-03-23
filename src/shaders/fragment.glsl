@@ -1,10 +1,15 @@
 #version 330 core
 
+// Rendering params
 #define HIT_DISTANCE 0.01
 #define MAX_STEP 300
 #define MAX_TRAVEL 5000.0
 #define EPSILON 0.0001
+
+// Colors
+#define HIT vec4(1, 1, 1, 1)
 #define FAR vec4(0, 0, 0, 0)
+#define OUT_OF_STEP vec4(1, 0, 0, 1)
 
 uniform vec2 uResolution;
 uniform float uTime;
@@ -41,6 +46,8 @@ vec3 approx_norm(vec3 p) {
 void main()
 {
     vec2 ndc = gl_FragCoord.xy / uResolution * 2.0 - 1;
+    vec2 aspect_ratio = vec2(1, 1 / (uResolution.x / uResolution.y));
+    ndc *= aspect_ratio;
     float cam_z_offset = 1.0 / tan(radians(uFov));
 
     vec3 origin = vec3(ndc.xy, 0);
@@ -59,12 +66,13 @@ void main()
         p += ray * d;
 
         if (d <= HIT_DISTANCE) {
-            FragColor = vec4(((approx_norm(p) + 1) * 0.5).xy, 0 , 1);
+            FragColor = vec4(approx_norm(p).xy, -approx_norm(p).z, 1);
+            // FragColor = HIT;
             return;
         }
 
         if (step > MAX_STEP) {
-            FragColor = vec4(1, 0, 0, 1);
+            FragColor = OUT_OF_STEP;
             return;
         }
 
