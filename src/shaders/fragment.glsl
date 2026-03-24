@@ -28,7 +28,7 @@ float map(vec3 p) {
     float sp1 = sdSphere(sp1_origin - p, 3.0 + abs(sin(uTime * 0.3) * 5.0));
     float sp2 = sdSphere(sp2_origin - p, 8);
 
-    return min(sp1, sp2);
+    return min(9999, sp2);
 }
 
 vec3 approx_norm(vec3 p) {
@@ -75,20 +75,24 @@ void main()
 
             // Diffuse lighting
             // -- Directional light
-            vec3 light_dir = -normalize(vec3(-1, -2, 2));
-            float intensity = 0.9;
-
-            // -- Point light
-            // vec3 light_pos = vec3(3, 5, 0);
-            // vec3 liight_dir = -normalize(p - light_pos))
+            // vec3 light_dir = normalize(vec3(-1, -2, 2));
             // float intensity = 0.9;
 
-            vec3 diffuse = max(0, dot(norm, light_dir)) * color * intensity;
+            // -- Point light
+            vec3 light_pos = vec3(0, 0, 0);
+            vec3 light_dir = normalize(p - light_pos);
+            float intensity = 0.9;
+
+            vec3 diffuse = max(0, dot(norm, -light_dir)) * color * intensity;
 
             // Specular lighting
+            vec3 reflected = reflect(light_dir, norm);
             vec3 specular = vec3(0);
 
-            FragColor = vec4(diffuse + ambient + specular, 1) ;
+
+            // FragColor = vec4(diffuse + ambient + specular, 1);
+            FragColor = vec4((reflect(light_dir, norm) + 1) * 0.5, 1);
+            // FragColor = vec4(((-reflect(-light_dir, norm)) + 0) * 1, 1);
             return;
         }
 
