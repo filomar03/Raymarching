@@ -7,9 +7,9 @@
 #define EPSILON 0.0001
 
 // Colors
-#define HIT vec4(1, 1, 1, 1)
-#define FAR vec4(0, 0, 0, 0)
-#define OUT_OF_STEP vec4(1, 0, 0, 1)
+#define HIT vec3(1.0, 0.95, 0.75)
+#define FAR vec3(0.05, 0.1, 0.0)
+#define OUT_OF_STEP vec3(0.3, 0, 0)
 
 uniform vec2 uResolution;
 uniform float uTime;
@@ -32,7 +32,7 @@ float map(vec3 p) {
 }
 
 vec3 approx_norm(vec3 p) {
-    // metodo differenza centrale
+    // central difference gradient
     vec2 h = vec2(EPSILON, 0.0);
 
     float dx = map(p + h.xyy) - map(p - h.xyy);
@@ -46,7 +46,7 @@ vec3 approx_norm(vec3 p) {
 void main()
 {
     vec2 ndc = gl_FragCoord.xy / uResolution * 2.0 - 1;
-    vec2 aspect_ratio = vec2(1, 1 / (uResolution.x / uResolution.y));
+    vec2 aspect_ratio = vec2(uResolution.x / uResolution.y, 1);
     ndc *= aspect_ratio;
     float cam_z_offset = 1.0 / tan(radians(uFov));
 
@@ -66,18 +66,39 @@ void main()
         p += ray * d;
 
         if (d <= HIT_DISTANCE) {
-            FragColor = vec4(approx_norm(p).xy, -approx_norm(p).z, 1);
-            // FragColor = HIT;
+            vec3 norm = approx_norm(p);
+            vec3 color = HIT;
+
+            // Ambient lighting
+            float ambient_intensity = 0.15;
+            vec3 ambient = color * ambient_intensity;
+
+            // Diffuse lighting
+            // -- Directional light
+            vec3 light_dir = -normalize(vec3(-1, -2, 2));
+            float intensity = 0.9;
+
+            // -- Point light
+            // vec3 light_pos = vec3(3, 5, 0);
+            // vec3 liight_dir = -normalize(p - light_pos))
+            // float intensity = 0.9;
+
+            vec3 diffuse = max(0, dot(norm, light_dir)) * color * intensity;
+
+            // Specular lighting
+            vec3 specular = vec3(0);
+
+            FragColor = vec4(diffuse + ambient + specular, 1) ;
             return;
         }
 
         if (step > MAX_STEP) {
-            FragColor = OUT_OF_STEP;
+            FragColor = vec4(OUT_OF_STEP, 1);
             return;
         }
 
         if (travel > MAX_TRAVEL) {
-            FragColor = FAR;
+            FragColor = vec4(FAR, 1);
             return;
         }
 

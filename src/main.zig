@@ -6,8 +6,8 @@ const engine = @import("engine/engine.zig");
 const OPENGL_MAJOR = 3;
 const OPENGL_MINOR = 3;
 
-const WINDOW_WIDTH = 600;
-const WINDOW_HEIGHT = 600;
+const WINDOW_WIDTH = 1200;
+const WINDOW_HEIGHT = 800;
 
 const SRC_DIR = "src";
 const SHADER_DIR = "shaders";
