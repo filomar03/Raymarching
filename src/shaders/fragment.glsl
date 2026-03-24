@@ -8,13 +8,14 @@
 
 // Colors
 #define HIT vec3(1.0, 0.95, 0.75)
-#define FAR vec3(0.05, 0.1, 0.0)
+#define FAR vec3(0.0, 0.0, 0.0)
 #define OUT_OF_STEP vec3(0.3, 0, 0)
 
 uniform vec2 uResolution;
 uniform float uTime;
 uniform vec2 uMouse;
 uniform float uFov;
+uniform vec2 uCamPos;
 out vec4 FragColor;
 
 float sdSphere(vec3 center, float radius) {
@@ -28,7 +29,7 @@ float map(vec3 p) {
     float sp1 = sdSphere(sp1_origin - p, 3.0 + abs(sin(uTime * 0.3) * 5.0));
     float sp2 = sdSphere(sp2_origin - p, 8);
 
-    return min(9999, sp2);
+    return min(sp1, sp2);
 }
 
 vec3 approx_norm(vec3 p) {
@@ -46,9 +47,8 @@ vec3 approx_norm(vec3 p) {
 void main()
 {
     vec2 ndc = gl_FragCoord.xy / uResolution * 2.0 - 1;
-    vec2 aspect_ratio = vec2(uResolution.x / uResolution.y, 1);
-    ndc *= aspect_ratio;
-    float cam_z_offset = 1.0 / tan(radians(uFov));
+    ndc.x *= uResolution.x / uResolution.y;
+    float cam_z_offset = 1.0 / tan(radians(uFov * 0.5));
 
     vec3 origin = vec3(ndc.xy, 0);
     vec3 camera = vec3(0, 0, -cam_z_offset);
@@ -69,11 +69,6 @@ void main()
             vec3 norm = approx_norm(p);
             vec3 color = HIT;
 
-            // Ambient lighting
-            float ambient_intensity = 0.15;
-            vec3 ambient = color * ambient_intensity;
-
-            // Diffuse lighting
             // -- Directional light
             // vec3 light_dir = normalize(vec3(-1, -2, 2));
             // float intensity = 0.9;
@@ -81,18 +76,21 @@ void main()
             // -- Point light
             vec3 light_pos = vec3(0, 0, 0);
             vec3 light_dir = normalize(p - light_pos);
-            float intensity = 0.9;
 
-            vec3 diffuse = max(0, dot(norm, -light_dir)) * color * intensity;
+            // Ambient lighting
+            float ambient_i = 0.05;
+            vec3 ambient = color * ambient_i;
+
+            // Diffuse lighting
+            float diffuse_i = 0.75;
+            vec3 diffuse = max(0, dot(norm, -light_dir)) * color * diffuse_i;
 
             // Specular lighting
             vec3 reflected = reflect(light_dir, norm);
-            vec3 specular = vec3(0);
+            float shininness = 512;
+            vec3 specular = vec3(pow(max(0, dot(reflected, norm)), shininness));
 
-
-            // FragColor = vec4(diffuse + ambient + specular, 1);
-            FragColor = vec4((reflect(light_dir, norm) + 1) * 0.5, 1);
-            // FragColor = vec4(((-reflect(-light_dir, norm)) + 0) * 1, 1);
+            FragColor = vec4(ambient + diffuse + specular, 1);
             return;
         }
 

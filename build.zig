@@ -48,6 +48,10 @@ pub fn build(b: *std.Build) void {
     const zopengl = b.dependency("zopengl", .{});
     exe.root_module.addImport("zopengl", zopengl.module("root"));
 
+    // zmath dependency
+    const zmath = b.dependency("zmath", .{});
+    exe.root_module.addImport("zmath", zmath.module("root"));
+
     b.installArtifact(exe);
 
     const run_exe = b.addRunArtifact(exe);

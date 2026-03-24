@@ -1,6 +1,7 @@
 const std = @import("std");
 const glfw = @import("zglfw");
 const opengl = @import("zopengl");
+const glm = @import("zmath");
 const engine = @import("engine/engine.zig");
 
 const OPENGL_MAJOR = 3;
@@ -21,6 +22,7 @@ const FOV = 50.0;
 const FOV_SENS = 1;
 const MIN_FOV = 30.0;
 const MAX_FOV = 120.0;
+const CAM_SPEED = [2]gl.Float {1, 1};
 
 const gl = opengl.bindings;
 
@@ -170,6 +172,7 @@ pub fn main() !void {
             .time = gl.getUniformLocation(program, "uTime"),
             .mouse = gl.getUniformLocation(program, "uMouse"),
             .fov = gl.getUniformLocation(program, "uFov"),
+            .cam_pos = gl.getUniformLocation(program, "uCamPos"),
         }
     };
 
@@ -181,6 +184,8 @@ pub fn main() !void {
     // Render loop
     while (!window.shouldClose()) {
         glfw.pollEvents();
+
+        getInput(window);
 
         gl.clearColor(0.0, 0.0, 0.0, 1.0);
         gl.clear(gl.COLOR_BUFFER_BIT);
@@ -195,6 +200,19 @@ pub fn main() !void {
     }
 }
 
+fn getInput(window: *glfw.Window) void {
+    // var cam = state.camera;
+    var z_input = 0;
+    var x_input = 0;
+    z_input += @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.w) == glfw.Action.press));
+    z_input += @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.s) == glfw.Action.press));
+    x_input += @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.d) == glfw.Action.press));
+    z_input += @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.a) == glfw.Action.press));
+
+    // modifica posizione camera
+    // aggiorna uniform
+}
+
 fn fbResizeCallback(window: *glfw.Window, width: c_int, height: c_int) callconv(.c) void {
     _ = window;
     const pipeline = &(state.pipeline orelse return);
@@ -205,12 +223,16 @@ fn fbResizeCallback(window: *glfw.Window, width: c_int, height: c_int) callconv(
 fn adjustFov(window: *glfw.Window, x_offset: f64 , y_offset: f64) callconv(.c) void {
     _ = window;
     _ = x_offset;
+
+    // Modificare camera in state
+
     var fov: f32 = undefined;
     const pipeline = &(state.pipeline orelse return);
     gl.getUniformfv(pipeline.program.*, pipeline.uniforms.fov, &fov);
     fov = std.math.clamp(fov + @as(f32, @floatCast(FOV_SENS * -y_offset)), MIN_FOV, MAX_FOV);
     gl.uniform1f(pipeline.uniforms.fov, fov);
 
+    // DEBUG!!!
     const stderr = state.console.writer(engine.ConsoleInterface.Kind.STDERR);
     stderr.print("FOV: {}\n", .{fov}) catch unreachable;
     stderr.flush() catch unreachable;
