@@ -1,7 +1,6 @@
 const std = @import("std");
 const glfw = @import("zglfw");
 const opengl = @import("zopengl");
-const glm = @import("engine/glm.zig");
 const engine = @import("engine/engine.zig");
 
 const OPENGL_MAJOR = 3;

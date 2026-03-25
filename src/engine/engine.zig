@@ -1,5 +1,4 @@
 const std = @import("std");
-const glm = @import("zmath");
 
 pub const State = struct {
     console: ConsoleInterface = .{},

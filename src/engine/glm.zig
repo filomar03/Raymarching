@@ -1,95 +1,83 @@
-// const std = @import("std");
-// const math = std.math;
+const std = @import("std");
+const math = std.math;
 
-// pub const Vec3 = struct {
-//     x: f32 = 0,
-//     y: f32 = 0,
-//     z: f32 = 0,
+// TODO: vorrei trovare il modo di aggiungere dinamicamente i campi
+pub const Vec3 = struct {
+    x: f32 = 0,
+    y: f32 = 0,
+    z: f32 = 0,
 
-//     const Self = @This();
+    const Self = @This();
 
-//     pub fn length (self: *Self) f32 {
-//         var acc: f32 = 0;
+    pub fn length (self: Self) f32 {
+        var acc: f32 = 0;
 
-//         var y: [1]u8 = undefined;
+        inline for (@typeInfo(Self).@"struct".fields) |field| {
+            acc += math.pow(f32, @field(self, field.name), 2);
+        }
 
-//         var stderr = std.fs.File.stderr().writer(&y);
-//         inline for (@typeInfo(Self).@"struct".fields, 0..) |field, i| {
-//             stderr.interface.print("{}: {s}, {*}, {s}\n", .{i, field.name, &field.default_value_ptr.?, @typeName(field.type)}) catch unreachable;
-//             acc += math.pow(f32, @field(self, field.name), 2);
-//         }
+        return @sqrt(acc);
+    }
 
-//         for (@typeInfo(Self).@"struct".decls, 0..) |decl, i| {
-//             stderr.interface.print("{}: {s}\n", .{i, decl.name}) catch unreachable;
-//         }
+    pub fn normalize(self: Self) Self {
+        const l = self.length();
 
-//         return @sqrt(acc);
-//     }
+        var res: Self = .{};
 
-//     pub fn normalize(self: Self) Self {
-//         const l = self.length();
+        for (@typeInfo(Self).@"struct".fields) |field| {
+            @field(res, field.name) = @field(self, field.name) / l;
+        }
 
-//         var res: Self = .{};
+        return res;
+    }
 
-//         for (@typeInfo(Self).@"struct".fields) |field| {
-//             @field(res, field.name) = @field(self, field.name) / l;
-//         }
+    pub fn sum(self: Self, other: anytype) Self {
+        var res: Self = .{};
 
-//         return res;
-//     }
+        for (@typeInfo(Self).@"struct".fields) |field| {
+            const val = @field(self, field.name);
+            @field(res, field.name) = val +
+                if (@TypeOf(other) == Self) {
+                    @field(other, field.name);
+                } else {
+                    switch (@typeInfo(@TypeOf(other))) {
+                        .float, .comptime_float => other,
+                        .int, .comptime_int => @as(f32, @floatFromInt(other)),
+                        else => @compileError(std.fmt.comptimePrint("{} only support {} or scalar types ", .{@src().fn_name, @typeName(Self)}))
+                    }
+                };
+        }
 
-//     pub fn normalized(self: *Self) void {
-//         self = self.normalize();
-//     }
+        return res;
+    }
 
-//     pub fn sum(self: *Self, other: anytype) Self {
-//         var res: Self = .{};
+    pub fn mul(self: Self, other: anytype) Self {
+        var res: Self = .{};
 
-//         for (@typeInfo(Self).@"struct".fields) |field| {
-//             const val = @field(self, field.name);
-//             @field(res, field.name) = val + {
-//                 if (@TypeOf(other) == Self) {
-//                     @field(other, field.name);
-//                 } else {
-//                     switch (@typeInfo(@TypeOf(other))) {
-//                         .float, .comptime_float => other,
-//                         .int, .comptime_int => @as(f32, @floatFromInt(other)),
-//                         else => @compileError(std.fmt.comptimePrint("{} only support {} or scalar types ", .{@src().fn_name, @typeName(Self)}))
-//                     }
-//                 }
-//             };
-//         }
+        for (@typeInfo(Self).@"struct".fields) |field| {
+            const val = @field(self, field.name);
+            @field(res, field.name) = val * {
+                if (@TypeOf(other) == Self) {
+                    @field(other, field.name);
+                } else {
+                    switch (@typeInfo(@TypeOf(other))) {
+                        .float, .comptime_float => other,
+                        .int, .comptime_int => @as(f32, @floatFromInt(other)),
+                        else => @compileError(std.fmt.comptimePrint("{} only support {} or scalar types ", .{@src().fn_name, @typeName(Self)}))
+                    }
+                }
+            };
+        }
 
-//         return res;
-//     }
+        return res;
+    }
 
-//     pub fn mul(self: *Self, other: anytype) Self {
-//         var res: Self = .{};
-
-//         for (@typeInfo(Self).@"struct".fields) |field| {
-//             const val = @field(self, field.name);
-//             @field(res, field.name) = val * {
-//                 if (@TypeOf(other) == Self) {
-//                     @field(other, field.name);
-//                 } else {
-//                     switch (@typeInfo(@TypeOf(other))) {
-//                         .float, .comptime_float => other,
-//                         .int, .comptime_int => @as(f32, @floatFromInt(other)),
-//                         else => @compileError(std.fmt.comptimePrint("{} only support {} or scalar types ", .{@src().fn_name, @typeName(Self)}))
-//                     }
-//                 }
-//             };
-//         }
-
-//         return res;
-//     }
-
-//     pub fn dot(self: Self, other: Self) f32 {
-//         _ = self;
-//         _ = other;
-//         @panic("Not implemented");
-//     }
-// };
+    pub fn dot(self: Self, other: Self) f32 {
+        _ = self;
+        _ = other;
+        @panic("Not implemented");
+    }
+};
 
 // const vec_def_val: f32 = 0;
 // pub fn Vec(dim: usize) type {
