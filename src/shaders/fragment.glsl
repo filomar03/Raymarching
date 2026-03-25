@@ -54,20 +54,14 @@ void main()
 {
     vec2 uv = gl_FragCoord.xy / uResolution * 2.0 - 1; // near plane coords
     float aspect_ratio = uResolution.x / uResolution.y;
-    // always expand not shrink
+    // expand uv to match window ratio
     uv.x *= max(1, aspect_ratio);
     uv.y *= max(1, 1 / aspect_ratio);
     float thf = tan(radians(uFov * 0.5)); // nearplane half height / distance from cam ratio
 
-    // TODO: cosa succede se
-
     vec3 origin = vec3(uv.xy, 0);
-    // se non aggiorno nphh (near plane half height) e nemmeno la pos camera, sto effettivamente
-    // modificando il FOV quando espano sulle y, capire cosa implica dato che sto lasciando liberta'
-    // sull'aspect ratio
-    // quindi se voglio ridurre near plane mi basta scalare uv
     float near_plane_half_height = max(1, 1 / aspect_ratio);
-    vec3 camera = vec3(0, 0, -(near_plane_half_height / thf)); // TODO: adjust near plane distance
+    vec3 camera = vec3(0, 0, -(near_plane_half_height / thf)); // TODO: spostare conti su cpu e eseguire correggere uv in base a near
     vec3 ray = normalize(origin - camera);
 
     vec3 p = origin;

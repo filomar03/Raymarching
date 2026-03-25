@@ -11,8 +11,6 @@ pub const ConsoleInterface = struct {
     stdout: ?std.fs.File.Writer = null,
     stderr: ?std.fs.File.Writer = null,
 
-    // TODO: creare campi che ritornano writer invece di metodo
-
     pub const Kind = enum {
         STDOUT,
         STDERR,
@@ -21,6 +19,7 @@ pub const ConsoleInterface = struct {
     const Self = @This();
 
     pub fn init(buf: []u8) Self {
+        // TOOD: avere un buf a testa
         return .{
             .stdout = std.fs.File.stdout().writer(buf),
             .stderr = std.fs.File.stderr().writer(buf)
@@ -28,9 +27,12 @@ pub const ConsoleInterface = struct {
     }
 
     pub fn writer(self: *Self, console: Kind) *std.Io.Writer {
+        // TODO: fare panic dicendo di chiamare init prima
+        //       e verificare che vada bene prendere il
+        //       puntatore del tipo restituiuto dallo switch
         return &switch (console) {
-            .STDOUT => self.stdout.?, // TODO: fare panic dicendo di chiamare init prima
-            .STDERR => self.stderr.?, // TODO: fare panic dicendo di chiamare init prima
+            .STDOUT => self.stdout.?,
+            .STDERR => self.stderr.?,
         }.interface;
     }
 };
@@ -52,4 +54,5 @@ pub const CameraObject = struct {
     near_plane: f32,
     position: [3]f32,
     speed: f32,
+    speed_modifier: f32,
 };

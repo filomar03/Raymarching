@@ -1,7 +1,7 @@
 const std = @import("std");
 const glfw = @import("zglfw");
 const opengl = @import("zopengl");
-const glm = @import("zmath");
+const glm = @import("engine/glm.zig");
 const engine = @import("engine/engine.zig");
 
 const OPENGL_MAJOR = 3;
@@ -32,6 +32,9 @@ const gl = opengl.bindings;
 var state: engine.State = .{};
 
 pub fn main() !void {
+    var x: glm.Vec3 = .{};
+    _ = x.length();
+
     // Allocator & Console
     var gpa: std.heap.DebugAllocator(.{}) = .init;
     const allocator = gpa.allocator();
@@ -211,8 +214,8 @@ fn getInput(window: *glfw.Window) void {
     x_input += @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.d) == glfw.Action.press));
     z_input += @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.a) == glfw.Action.press));
 
-    // modifica posizione camera
-    // aggiorna uniform
+    // TODO: modifica posizione camera
+    //       e aggiornare uniform
 }
 
 fn fbResizeCallback(window: *glfw.Window, width: c_int, height: c_int) callconv(.c) void {
@@ -226,7 +229,7 @@ fn adjustFov(window: *glfw.Window, x_offset: f64 , y_offset: f64) callconv(.c) v
     _ = window;
     _ = x_offset;
 
-    // Modificare camera in state
+    // TODO: utilizzare CameraObject
 
     var fov: f32 = undefined;
     const pipeline = &(state.shader orelse return);
