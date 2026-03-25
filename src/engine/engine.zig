@@ -1,15 +1,17 @@
 const std = @import("std");
 const glm = @import("zmath");
 
-pub const EngineState = struct {
+pub const State = struct {
     console: ConsoleInterface = .{},
-    pipeline: ?Pipeline = null,
-    camera: CameraObject(.{}), // TODO: sistemare il problema nella creazione della cam default, probabilmente cambiare dato che non ha senso che i parametri def facciano parte della signature del tipo
+    shader: ?ShaderInterface = null,
+    camera: ?CameraObject = null,
 };
 
 pub const ConsoleInterface = struct {
     stdout: ?std.fs.File.Writer = null,
     stderr: ?std.fs.File.Writer = null,
+
+    // TODO: creare campi che ritornano writer invece di metodo
 
     pub const Kind = enum {
         STDOUT,
@@ -33,7 +35,7 @@ pub const ConsoleInterface = struct {
     }
 };
 
-pub const Pipeline = struct {
+pub const ShaderInterface = struct {
     program: *const c_uint,
     uniforms: UniformLocations,
 
@@ -42,28 +44,12 @@ pub const Pipeline = struct {
         time: c_int,
         mouse: c_int,
         fov: c_int,
-        cam_pos: c_int,
     };
 };
 
-const DEF_CAM_FOV = 70.0;
-const DEF_CAM_SPEED = 1.0;
-
-pub const CameraOptions = struct {
-    def_fov: f32 = DEF_CAM_FOV,
-    def_speed: f32 = DEF_CAM_SPEED
+pub const CameraObject = struct {
+    fov: f32,
+    near_plane: f32,
+    position: [3]f32,
+    speed: f32,
 };
-
-pub fn CameraObject (comptime opts: CameraOptions) type {
-    return struct {
-        const Self = @This();
-
-        fov: f32 = opts.def_fov,
-        position: [3]f32 = @splat(0.0),
-        speed: f32 = opts.def_speed,
-
-        pub fn reset(self: *Self) void {
-            self.* = .{};
-        }
-    };
-}

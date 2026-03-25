@@ -54,6 +54,12 @@ pub fn build(b: *std.Build) void {
 
     b.installArtifact(exe);
 
+    // TODO: compilare ed eseguire test
+    // const run_test = b.addTe
+
+    // const test_step = b.step("test", "Execute tests");
+    // test_step.dependOn();
+
     const run_exe = b.addRunArtifact(exe);
 
     const run_step = b.step("run", "Run the executable");

@@ -8,7 +8,7 @@ const OPENGL_MAJOR = 3;
 const OPENGL_MINOR = 3;
 
 const WINDOW_WIDTH = 600;
-const WINDOW_HEIGHT = 600;
+const WINDOW_HEIGHT = 800;
 
 const SRC_DIR = "src";
 const SHADER_DIR = "shaders";
@@ -18,15 +18,18 @@ const MAX_SHADER_SIZE = 1024 * 1024; // 1 Mib
 
 const INFO_LOG_MAX = 512;
 
-const FOV = 50.0;
+// Camera config
+const FOV = 70.0;
+const NEAR = 1.0;
+const CAM_SPEED = 1.0;
+
 const FOV_SENS = 1;
 const MIN_FOV = 30.0;
 const MAX_FOV = 120.0;
-const CAM_SPEED = [2]gl.Float {1, 1};
 
 const gl = opengl.bindings;
 
-var state: engine.EngineState = .{};
+var state: engine.State = .{};
 
 pub fn main() !void {
     // Allocator & Console
@@ -165,21 +168,20 @@ pub fn main() !void {
 
     gl.useProgram(program);
 
-    const pipeline: engine.Pipeline = .{
+    const shader_interface: engine.ShaderInterface = .{
         .program = &program,
         .uniforms = .{
             .resolution = gl.getUniformLocation(program, "uResolution"),
             .time = gl.getUniformLocation(program, "uTime"),
             .mouse = gl.getUniformLocation(program, "uMouse"),
             .fov = gl.getUniformLocation(program, "uFov"),
-            .cam_pos = gl.getUniformLocation(program, "uCamPos"),
         }
     };
 
-    state.pipeline = pipeline;
+    state.shader = shader_interface;
 
-    gl.uniform2f(pipeline.uniforms.resolution, @floatFromInt(fb_width), @floatFromInt(fb_height));
-    gl.uniform1f(pipeline.uniforms.fov, FOV);
+    gl.uniform2f(shader_interface.uniforms.resolution, @floatFromInt(fb_width), @floatFromInt(fb_height));
+    gl.uniform1f(shader_interface.uniforms.fov, FOV);
 
     // Render loop
     while (!window.shouldClose()) {
@@ -190,7 +192,7 @@ pub fn main() !void {
         gl.clearColor(0.0, 0.0, 0.0, 1.0);
         gl.clear(gl.COLOR_BUFFER_BIT);
 
-        gl.uniform1f(pipeline.uniforms.time, @floatCast(glfw.getTime()));
+        gl.uniform1f(shader_interface.uniforms.time, @floatCast(glfw.getTime()));
 
         // gl.useProgram(program); // Should i call these?
         // gl.bindVertexArray(vao);
@@ -202,8 +204,8 @@ pub fn main() !void {
 
 fn getInput(window: *glfw.Window) void {
     // var cam = state.camera;
-    var z_input = 0;
-    var x_input = 0;
+    var z_input: f32 = 0;
+    var x_input: f32 = 0;
     z_input += @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.w) == glfw.Action.press));
     z_input += @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.s) == glfw.Action.press));
     x_input += @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.d) == glfw.Action.press));
@@ -215,7 +217,7 @@ fn getInput(window: *glfw.Window) void {
 
 fn fbResizeCallback(window: *glfw.Window, width: c_int, height: c_int) callconv(.c) void {
     _ = window;
-    const pipeline = &(state.pipeline orelse return);
+    const pipeline = &(state.shader orelse return);
     gl.uniform2f(pipeline.uniforms.resolution, @floatFromInt(width), @floatFromInt(height));
     gl.viewport(0, 0, width, height);
 }
@@ -227,7 +229,7 @@ fn adjustFov(window: *glfw.Window, x_offset: f64 , y_offset: f64) callconv(.c) v
     // Modificare camera in state
 
     var fov: f32 = undefined;
-    const pipeline = &(state.pipeline orelse return);
+    const pipeline = &(state.shader orelse return);
     gl.getUniformfv(pipeline.program.*, pipeline.uniforms.fov, &fov);
     fov = std.math.clamp(fov + @as(f32, @floatCast(FOV_SENS * -y_offset)), MIN_FOV, MAX_FOV);
     gl.uniform1f(pipeline.uniforms.fov, fov);

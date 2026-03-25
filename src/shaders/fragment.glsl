@@ -15,21 +15,27 @@ uniform vec2 uResolution;
 uniform float uTime;
 uniform vec2 uMouse;
 uniform float uFov;
-uniform vec2 uCamPos;
 out vec4 FragColor;
+
+float sdSquare(vec3 p, float size) {
+    vec2 d = abs(p.xy) - vec2(size);
+    return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
+}
 
 float sdSphere(vec3 center, float radius) {
     return length(center) - radius;
 }
 
 float map(vec3 p) {
-    vec3 sp1_origin = vec3(0, 0, 10);
-    vec3 sp2_origin = vec3(10, 0, 20);
+    // vec3 sp1_origin = vec3(0, 0, 10);
+    // vec3 sp2_origin = vec3(10, 0, 20);
 
-    float sp1 = sdSphere(sp1_origin - p, 3.0 + abs(sin(uTime * 0.3) * 5.0));
-    float sp2 = sdSphere(sp2_origin - p, 8);
+    // float sp1 = sdSphere(sp1_origin - p, 3.0 + abs(sin(uTime * 0.3) * 5.0));
+    // float sp2 = sdSphere(sp2_origin - p, 8);
 
-    return min(sp1, sp2);
+    // return min(sp1, sp2);
+
+    return min(sdSphere(vec3(0, 1, 1) - p, 1), min(sdSquare(p, 1), sdSphere(vec3(3, 0, 1) - p, 1)));
 }
 
 vec3 approx_norm(vec3 p) {
@@ -46,12 +52,22 @@ vec3 approx_norm(vec3 p) {
 
 void main()
 {
-    vec2 ndc = gl_FragCoord.xy / uResolution * 2.0 - 1;
-    ndc.x *= uResolution.x / uResolution.y;
-    float cam_z_offset = 1.0 / tan(radians(uFov * 0.5));
+    vec2 uv = gl_FragCoord.xy / uResolution * 2.0 - 1; // near plane coords
+    float aspect_ratio = uResolution.x / uResolution.y;
+    // always expand not shrink
+    uv.x *= max(1, aspect_ratio);
+    uv.y *= max(1, 1 / aspect_ratio);
+    float thf = tan(radians(uFov * 0.5)); // nearplane half height / distance from cam ratio
 
-    vec3 origin = vec3(ndc.xy, 0);
-    vec3 camera = vec3(0, 0, -cam_z_offset);
+    // TODO: cosa succede se
+
+    vec3 origin = vec3(uv.xy, 0);
+    // se non aggiorno nphh (near plane half height) e nemmeno la pos camera, sto effettivamente
+    // modificando il FOV quando espano sulle y, capire cosa implica dato che sto lasciando liberta'
+    // sull'aspect ratio
+    // quindi se voglio ridurre near plane mi basta scalare uv
+    float near_plane_half_height = max(1, 1 / aspect_ratio);
+    vec3 camera = vec3(0, 0, -(near_plane_half_height / thf)); // TODO: adjust near plane distance
     vec3 ray = normalize(origin - camera);
 
     vec3 p = origin;
@@ -66,6 +82,10 @@ void main()
         p += ray * d;
 
         if (d <= HIT_DISTANCE) {
+            // DEBUG!!!
+            FragColor = vec4(approx_norm(p).xy, -abs(approx_norm(p)).z, 1);
+            return;
+
             vec3 norm = approx_norm(p);
             vec3 color = HIT;
 
@@ -81,14 +101,15 @@ void main()
             float ambient_i = 0.05;
             vec3 ambient = color * ambient_i;
 
-            // Diffuse lighting
+            // Diffuse lighting (Lambert)
             float diffuse_i = 0.75;
             vec3 diffuse = max(0, dot(norm, -light_dir)) * color * diffuse_i;
 
-            // Specular lighting
+            // Specular lighting (Phong)
             vec3 reflected = reflect(light_dir, norm);
+            vec3 specular_color = vec3(1, 1, 1);
             float shininness = 512;
-            vec3 specular = vec3(pow(max(0, dot(reflected, norm)), shininness));
+            vec3 specular = pow(max(0, dot(reflected, norm)), shininness) * specular_color;
 
             FragColor = vec4(ambient + diffuse + specular, 1);
             return;
