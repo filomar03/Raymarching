@@ -2,6 +2,11 @@ const std = @import("std");
 const glfw = @import("zglfw");
 const opengl = @import("zopengl");
 const engine = @import("engine/engine.zig");
+const glm = @import("engine/glm.zig");
+const zm = @import("zmath");
+
+const Console = engine.ConsoleInterface.Kind;
+const Vec3 = glm.Vec(3);
 
 const OPENGL_MAJOR = 3;
 const OPENGL_MINOR = 3;
@@ -31,16 +36,13 @@ const gl = opengl.bindings;
 var state: engine.State = .{};
 
 pub fn main() !void {
-    var x: glm.Vec3 = .{};
-    _ = x.length();
-
     // Allocator & Console
     var gpa: std.heap.DebugAllocator(.{}) = .init;
     const allocator = gpa.allocator();
 
     var buf: [64]u8 = undefined;
-    state.console = .init(&buf);
-    var stderr = state.console.writer(engine.ConsoleInterface.Kind.STDERR);
+    state.console.init(Console.STDERR, &buf);
+    var stderr = state.console.writer(Console.STDERR);
 
     // GLFW & Context init
     try glfw.init();

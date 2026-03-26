@@ -17,21 +17,17 @@ pub const ConsoleInterface = struct {
 
     const Self = @This();
 
-    pub fn init(buf: []u8) Self {
-        // TOOD: avere un buf a testa
-        return .{
-            .stdout = std.fs.File.stdout().writer(buf),
-            .stderr = std.fs.File.stderr().writer(buf)
-        };
+    pub fn init(self: *Self, kind: Kind, buf: []u8) void {
+        switch (kind) {
+            .STDOUT => self.stdout = std.fs.File.stdout().writer(buf),
+            .STDERR => self.stderr = std.fs.File.stderr().writer(buf),
+        }
     }
 
     pub fn writer(self: *Self, console: Kind) *std.Io.Writer {
-        // TODO: fare panic dicendo di chiamare init prima
-        //       e verificare che vada bene prendere il
-        //       puntatore del tipo restituiuto dallo switch
         return &switch (console) {
-            .STDOUT => self.stdout.?,
-            .STDERR => self.stderr.?,
+            .STDOUT => self.stdout orelse @panic("stdout not initialized"),
+            .STDERR => self.stderr orelse @panic("stderr not initialized"),
         }.interface;
     }
 };
