@@ -39,18 +39,16 @@ pub fn Vec(dim: usize) type {
         pub fn sum(self: Self, other: anytype) Self {
             var res: Self = .{};
 
-            for (@typeInfo(Self).@"struct".fields[0..dim]) |field| {
+            inline for (@typeInfo(Self).@"struct".fields[0..dim]) |field| {
                 const val = @field(self, field.name);
                 @field(res, field.name) = val +
-                    if (@TypeOf(other) == Self) {
-                        @field(other, field.name);
-                    } else {
+                    if (@TypeOf(other) == Self) @field(other, field.name)
+                    else
                         switch (@typeInfo(@TypeOf(other))) {
                             .float, .comptime_float => other,
                             .int, .comptime_int => @as(f32, @floatFromInt(other)),
                             else => @compileError(std.fmt.comptimePrint("{} only support {} or scalar types ", .{@src().fn_name, @typeName(Self)}))
-                        }
-                    };
+                        };
             }
 
             return res;
