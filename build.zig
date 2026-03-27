@@ -52,7 +52,7 @@ pub fn build(b: *std.Build) void {
     const zmath = b.dependency("zmath", .{});
     exe.root_module.addImport("zmath", zmath.module("root"));
 
-    // test step (install step dependency)
+    // test step (install dep)
     const test_exe = b.addTest(.{
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/test.zig"),
@@ -69,7 +69,7 @@ pub fn build(b: *std.Build) void {
 
     b.installArtifact(exe);
 
-    // run step (doesn't install)
+    // run step (no install)
     const run_exe = b.addRunArtifact(exe);
 
     const run_step = b.step("run", "Run the executable");

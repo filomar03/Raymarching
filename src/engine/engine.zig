@@ -1,9 +1,12 @@
 const std = @import("std");
+const glm = @import("glm.zig");
+
+const Vec3 = glm.Vec(3);
 
 pub const State = struct {
     console: ConsoleInterface = .{},
     shader: ?ShaderInterface = null,
-    camera: ?CameraObject = null,
+    camera: CameraObject = .{},
 };
 
 pub const ConsoleInterface = struct {
@@ -25,6 +28,8 @@ pub const ConsoleInterface = struct {
     }
 
     pub fn writer(self: *Self, console: Kind) *std.Io.Writer {
+        // TOOD: non devo produrre un valore per evitare di creare
+        // un local e quindi ritornare un puntatore invalido
         return &switch (console) {
             .STDOUT => self.stdout orelse @panic("stdout not initialized"),
             .STDERR => self.stderr orelse @panic("stderr not initialized"),
@@ -39,15 +44,17 @@ pub const ShaderInterface = struct {
     const UniformLocations = struct {
         resolution: c_int,
         time: c_int,
-        mouse: c_int,
-        fov: c_int,
+        cam_fov: c_int,
+        cam_near: c_int,
+        cam_pos: c_int,
     };
 };
 
+const CAM_DEF_FOV = 70;
+const CAM_DEF_NEAR = 1;
+
 pub const CameraObject = struct {
-    fov: f32,
-    near_plane: f32,
-    position: [3]f32,
-    speed: f32,
-    speed_modifier: f32,
+    fov: f32 = CAM_DEF_FOV,
+    near: f32 = CAM_DEF_NEAR,
+    position: Vec3 = .{},
 };

@@ -7,6 +7,7 @@ const zm = @import("zmath");
 
 const Console = engine.ConsoleInterface.Kind;
 const Vec3 = glm.Vec(3);
+const Vec2 = glm.Vec(2);
 
 const OPENGL_MAJOR = 3;
 const OPENGL_MINOR = 3;
@@ -22,15 +23,6 @@ const MAX_SHADER_SIZE = 1024 * 1024; // 1 Mib
 
 const INFO_LOG_MAX = 512;
 
-// Camera config
-const FOV = 70.0;
-const NEAR = 1.0;
-const CAM_SPEED = 1.0;
-
-const FOV_SENS = 1;
-const MIN_FOV = 30.0;
-const MAX_FOV = 120.0;
-
 const gl = opengl.bindings;
 
 var state: engine.State = .{};
@@ -41,8 +33,8 @@ pub fn main() !void {
     const allocator = gpa.allocator();
 
     var buf: [64]u8 = undefined;
-    state.console.init(Console.STDERR, &buf);
-    var stderr = state.console.writer(Console.STDERR);
+    state.console.init(Console.STDOUT, &buf);
+    var stderr = state.console.writer(Console.STDOUT);
 
     // GLFW & Context init
     try glfw.init();
@@ -177,15 +169,18 @@ pub fn main() !void {
         .uniforms = .{
             .resolution = gl.getUniformLocation(program, "uResolution"),
             .time = gl.getUniformLocation(program, "uTime"),
-            .mouse = gl.getUniformLocation(program, "uMouse"),
-            .fov = gl.getUniformLocation(program, "uFov"),
+            .cam_fov = gl.getUniformLocation(program, "uFov"),
+            .cam_near = gl.getUniformLocation(program, "uNear"),
+            .cam_pos = gl.getUniformLocation(program, "uCamPos"),
         }
     };
 
     state.shader = shader_interface;
 
     gl.uniform2f(shader_interface.uniforms.resolution, @floatFromInt(fb_width), @floatFromInt(fb_height));
-    gl.uniform1f(shader_interface.uniforms.fov, FOV);
+    gl.uniform1f(shader_interface.uniforms.cam_fov, state.camera.fov);
+    gl.uniform1f(shader_interface.uniforms.cam_near, state.camera.near);
+    gl.uniform3fv(shader_interface.uniforms.cam_pos, 1, &state.camera.position.toArray());
 
     // Render loop
     while (!window.shouldClose()) {
@@ -193,8 +188,8 @@ pub fn main() !void {
 
         getInput(window);
 
-        gl.clearColor(0.0, 0.0, 0.0, 1.0);
-        gl.clear(gl.COLOR_BUFFER_BIT);
+        // gl.clearColor(0.0, 0.0, 0.0, 1.0);
+        // gl.clear(gl.COLOR_BUFFER_BIT);
 
         gl.uniform1f(shader_interface.uniforms.time, @floatCast(glfw.getTime()));
 
@@ -206,40 +201,58 @@ pub fn main() !void {
     }
 }
 
+const CAM_SPEED = Vec3{.x = 0.1, .y = 0.05, .z = 0.1};
+
 fn getInput(window: *glfw.Window) void {
-    // var cam = state.camera;
-    var z_input: f32 = 0;
-    var x_input: f32 = 0;
-    z_input += @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.w) == glfw.Action.press));
-    z_input += @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.s) == glfw.Action.press));
-    x_input += @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.d) == glfw.Action.press));
-    z_input += @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.a) == glfw.Action.press));
+    const stderr = state.console.writer(Console.STDOUT);
 
-    // TODO: modifica posizione camera
-    //       e aggiornare uniform
+    const forward: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.w) == glfw.Action.press));
+    const backwards: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.s) == glfw.Action.press));
+    const right: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.d) == glfw.Action.press));
+    const left: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.a) == glfw.Action.press));
+    const up: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.q) == glfw.Action.press));
+    const down: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.e) == glfw.Action.press));
+    var input: Vec3 = .{.x = right + -left, .y = up + -down, .z = forward + -backwards};
+    input = input.normalize();
+
+    // TODO: direzioni tutte da invertire
+    // e traslare con dt
+
+    const dt: f32 = 1;
+    state.camera.position = state.camera.position.sum(input.mul(CAM_SPEED).mul(dt));
+    const shader = state.shader orelse return;
+    gl.uniform3fv(shader.uniforms.cam_pos, 1, &state.camera.position.toArray());
+
+    // DEBUG!!!
+    if (input.length() != 0) {
+        stderr.print("POS: {:5.1}, {:5.1}, {:5.1}\n", .{state.camera.position.x, state.camera.position.y, state.camera.position.z}) catch unreachable;
+        stderr.flush() catch unreachable;
+    }
 }
 
-fn fbResizeCallback(window: *glfw.Window, width: c_int, height: c_int) callconv(.c) void {
-    _ = window;
-    const pipeline = &(state.shader orelse return);
-    gl.uniform2f(pipeline.uniforms.resolution, @floatFromInt(width), @floatFromInt(height));
-    gl.viewport(0, 0, width, height);
-}
+const FOV_SENS = 1;
+const MIN_FOV = 30;
+const MAX_FOV = 120;
 
 fn adjustFov(window: *glfw.Window, x_offset: f64 , y_offset: f64) callconv(.c) void {
     _ = window;
     _ = x_offset;
 
-    // TODO: utilizzare CameraObject
-
-    var fov: f32 = undefined;
-    const pipeline = &(state.shader orelse return);
-    gl.getUniformfv(pipeline.program.*, pipeline.uniforms.fov, &fov);
-    fov = std.math.clamp(fov + @as(f32, @floatCast(FOV_SENS * -y_offset)), MIN_FOV, MAX_FOV);
-    gl.uniform1f(pipeline.uniforms.fov, fov);
+    const shader = state.shader orelse return;
+    const new_fov = state.camera.fov + @as(f32, @floatCast(-y_offset)) * FOV_SENS;
+    state.camera.fov = std.math.clamp(new_fov, MIN_FOV, MAX_FOV);
+    gl.uniform1f(shader.uniforms.cam_fov, state.camera.fov);
 
     // DEBUG!!!
-    const stderr = state.console.writer(engine.ConsoleInterface.Kind.STDERR);
-    stderr.print("FOV: {}\n", .{fov}) catch unreachable;
+    const stderr = state.console.writer(Console.STDOUT);
+    stderr.print("FOV: {}\n", .{state.camera.fov}) catch unreachable;
     stderr.flush() catch unreachable;
+}
+
+fn fbResizeCallback(window: *glfw.Window, width: c_int, height: c_int) callconv(.c) void {
+    _ = window;
+
+    const shader = state.shader orelse return;
+    gl.uniform2f(shader.uniforms.resolution, @floatFromInt(width), @floatFromInt(height));
+    gl.viewport(0, 0, width, height);
 }

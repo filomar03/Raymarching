@@ -13,8 +13,9 @@
 
 uniform vec2 uResolution;
 uniform float uTime;
-uniform vec2 uMouse;
 uniform float uFov;
+uniform float uNear;
+uniform vec3 uCamPos;
 out vec4 FragColor;
 
 float sdSquare(vec3 p, float size) {
@@ -27,15 +28,13 @@ float sdSphere(vec3 center, float radius) {
 }
 
 float map(vec3 p) {
-    // vec3 sp1_origin = vec3(0, 0, 10);
-    // vec3 sp2_origin = vec3(10, 0, 20);
+    vec3 sp1_origin = vec3(0, 0, 10);
+    vec3 sp2_origin = vec3(10, 0, 20);
 
-    // float sp1 = sdSphere(sp1_origin - p, 3.0 + abs(sin(uTime * 0.3) * 5.0));
-    // float sp2 = sdSphere(sp2_origin - p, 8);
+    float sp1 = sdSphere(sp1_origin - p, 3.0 + abs(sin(uTime * 0.3) * 5.0));
+    float sp2 = sdSphere(sp2_origin - p, 8);
 
-    // return min(sp1, sp2);
-
-    return min(sdSphere(vec3(0, 1, 1) - p, 1), min(sdSquare(p, 1), sdSphere(vec3(3, 0, 1) - p, 1)));
+    return min(sp1, sp2);
 }
 
 vec3 approx_norm(vec3 p) {
@@ -54,14 +53,14 @@ void main()
 {
     vec2 uv = gl_FragCoord.xy / uResolution * 2.0 - 1; // near plane coords
     float aspect_ratio = uResolution.x / uResolution.y;
-    // expand uv to match window ratio
-    uv.x *= max(1, aspect_ratio);
-    uv.y *= max(1, 1 / aspect_ratio);
-    float thf = tan(radians(uFov * 0.5)); // nearplane half height / distance from cam ratio
+    float thf = tan(radians(uFov * 0.5)); // nearplane half height / distance from cam (near) ratio
+    uv *= vec2(thf * uNear);
+    uv.x *= aspect_ratio;
 
-    vec3 origin = vec3(uv.xy, 0);
-    float near_plane_half_height = max(1, 1 / aspect_ratio);
-    vec3 camera = vec3(0, 0, -(near_plane_half_height / thf)); // TODO: spostare conti su cpu e eseguire correggere uv in base a near
+    // TODO: sistemare near
+
+    vec3 camera = uCamPos;
+    vec3 origin = vec3(uv, uNear);
     vec3 ray = normalize(origin - camera);
 
     vec3 p = origin;
