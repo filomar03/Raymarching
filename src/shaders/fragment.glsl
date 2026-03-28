@@ -7,7 +7,7 @@
 #define EPSILON 0.0001
 
 // Colors
-#define HIT vec3(1.0, 0.95, 0.75)
+#define HIT vec3(1.0, 0.95, 0.85)
 #define FAR vec3(0.0, 0.0, 0.0)
 #define OUT_OF_STEP vec3(0.3, 0, 0)
 
@@ -17,6 +17,17 @@ uniform float uFov;
 uniform float uNear;
 uniform vec3 uCamPos;
 out vec4 FragColor;
+
+struct Light {
+    vec3 position;
+    bool follow_cam;
+    float intensity;
+};
+
+struct Material {
+    vec3 color;
+    float shininess;
+};
 
 float sdSquare(vec3 p, float size) {
     vec2 d = abs(p.xy) - vec2(size);
@@ -31,7 +42,7 @@ float map(vec3 p) {
     vec3 sp1_origin = vec3(0, 0, 10);
     vec3 sp2_origin = vec3(10, 0, 20);
 
-    float sp1 = sdSphere(sp1_origin - p, 3.0 + abs(sin(uTime * 0.3) * 5.0));
+    float sp1 = sdSphere(sp1_origin - p, 3.0 + abs(sin(uTime * 1.2) * 2.0));
     float sp2 = sdSphere(sp2_origin - p, 8);
 
     return min(sp1, sp2);
@@ -47,6 +58,21 @@ vec3 approx_norm(vec3 p) {
 
     vec3 norm = normalize(vec3(dx, dy, dz));
     return norm;
+}
+
+#define DIR_LIGHT 999999
+#define AMBIENT_I 0.15
+#define LIGHTS_NUM 1
+Light lights[LIGHTS_NUM] = Light[](
+    Light(vec3(0.0, 3.0, 0.0), true, 0.7)
+);
+
+float computeDiffuse() { // computes diffuse lighting (Lambert model)
+    return 1.0; // TODO: move here calculations
+}
+
+float computeSpecular() { // computes specular lighting (Phong model)
+    return 1.0; // TODO: move here calculations
 }
 
 void main()
@@ -72,33 +98,30 @@ void main()
         p += ray * d;
 
         if (d <= HIT_DISTANCE) {
-
             vec3 norm = approx_norm(p);
-            vec3 color = HIT;
+            Material mat = Material(HIT, 512);
 
-            // -- Directional light
-            vec3 light_dir = normalize(vec3(-1, -2, 2));
-            float intensity = 0.9;
+            // ambient lighting
+            float ambient = AMBIENT_I;
+            float diffuse = 0.0;
+            float specular = 0.0;
 
-            // -- Point light
-            // vec3 light_pos = vec3(0, 0, 0);
-            // vec3 light_dir = normalize(p - light_pos);
+            for (int i = 0; i < LIGHTS_NUM; i++) {
+                Light l = lights[i];
 
-            // Ambient lighting
-            float ambient_i = 0.05;
-            vec3 ambient = color * ambient_i;
+                if (l.follow_cam) {
+                    l.position += uCamPos;
+                }
 
-            // Diffuse lighting (Lambert)
-            float diffuse_i = 0.75;
-            vec3 diffuse = max(0, dot(norm, -light_dir)) * color * diffuse_i;
+                vec3 p2l_dir = normalize(l.position - p);
+                diffuse += max(0, dot(norm, p2l_dir)) * l.intensity;
+                vec3 l2p_dir = -p2l_dir;
+                vec3 reflection = reflect(l2p_dir, norm); // TODO: maybe i should normalize, maybe even just to correct fp errors
+                vec3 p2cam_dir = normalize(uCamPos - p);
+                specular += pow(max(0, dot(reflection, p2cam_dir)), mat.shininess);
+            }
 
-            // Specular lighting (Phong)
-            vec3 reflected = reflect(light_dir, norm);
-            vec3 specular_color = vec3(1, 1, 1);
-            float shininness = 512;
-            vec3 specular = pow(max(0, dot(reflected, norm)), shininness) * specular_color;
-
-            FragColor = vec4(ambient + diffuse + specular, 1);
+            FragColor = vec4((ambient + diffuse + specular) * mat.color, 1);
             return;
         }
 

@@ -29,7 +29,7 @@ pub const ConsoleInterface = struct {
     }
 
     pub fn writer(self: *Self, console: Kind) *std.Io.Writer {
-        // TOOD: non devo produrre un valore per evitare di creare
+        // TODO: non devo produrre un valore per evitare di creare
         // un local e quindi ritornare un puntatore invalido
         return &switch (console) {
             .STDOUT => self.stdout orelse @panic("stdout not initialized"),

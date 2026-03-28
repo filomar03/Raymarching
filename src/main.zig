@@ -190,13 +190,13 @@ pub fn main() !void {
 
         getInput(window);
 
-        // gl.clearColor(0.0, 0.0, 0.0, 1.0);
-        // gl.clear(gl.COLOR_BUFFER_BIT);
+        // gl.clearColor(0.0, 0.0, 0.0, 1.0); // TODO: should i call these
+        // gl.clear(gl.COLOR_BUFFER_BIT); // TODO: should i call these
 
         gl.uniform1f(shader_interface.uniforms.time, @floatCast(glfw.getTime()));
 
-        // gl.useProgram(program); // Should i call these?
-        // gl.bindVertexArray(vao);
+        // gl.useProgram(program); // TODO: should i call these
+        // gl.bindVertexArray(vao); // TODO: should i call these
         gl.drawArrays(gl.TRIANGLES, 0, vertices.len / VERT_VEC_SIZE);
 
         window.swapBuffers();
@@ -206,7 +206,7 @@ pub fn main() !void {
     }
 }
 
-const CAM_SPEED = Vec3{.x = 5, .y = 3, .z = 5};
+const CAM_SPEED = Vec3{.x = 7.5, .y = 3, .z = 7.5};
 
 const NEAR_SENS = 7;
 const NEAR_MIN = 0.1;
@@ -225,9 +225,6 @@ fn moveCamera(window: *glfw.Window) void {
     const down: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.e) == glfw.Action.press));
     var input: Vec3 = .{.x = right + -left, .y = up + -down, .z = forward + -backwards};
     input = input.normalize();
-
-    // TODO: direzioni tutte da invertire
-    // e traslare con dt
 
     state.camera.position = state.camera.position.sum(input.mul(CAM_SPEED).mul(state.dt));
     const shader = state.shader orelse return;
