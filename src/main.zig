@@ -12,7 +12,7 @@ const Vec2 = glm.Vec(2);
 const OPENGL_MAJOR = 3;
 const OPENGL_MINOR = 3;
 
-const WINDOW_WIDTH = 600;
+const WINDOW_WIDTH = 1200;
 const WINDOW_HEIGHT = 800;
 
 const SRC_DIR = "src";
@@ -34,7 +34,7 @@ pub fn main() !void {
 
     var buf: [64]u8 = undefined;
     state.console.init(Console.STDOUT, &buf);
-    var stderr = state.console.writer(Console.STDOUT);
+    var console = state.console.writer(Console.STDOUT);
 
     // GLFW & Context init
     try glfw.init();
@@ -50,7 +50,7 @@ pub fn main() !void {
     glfw.makeContextCurrent(window);
 
     _ = glfw.setFramebufferSizeCallback(window, &fbResizeCallback);
-    _ = glfw.setScrollCallback(window, &adjustFov);
+    _ = glfw.setScrollCallback(window, &scrollCallback);
 
     try opengl.loadCoreProfile(glfw.getProcAddress, OPENGL_MAJOR, OPENGL_MINOR);
 
@@ -131,8 +131,8 @@ pub fn main() !void {
     gl.getShaderiv(vert_shad, gl.COMPILE_STATUS, &shader_compiled);
     if (shader_compiled != gl.TRUE) {
         gl.getShaderInfoLog(vert_shad, INFO_LOG_MAX, @ptrCast(&log_len), @ptrCast(&info_log));
-        try stderr.print("[Vertex shader compilation] {s}", .{info_log[0..@intCast(log_len)]});
-        try stderr.flush();
+        try console.print("[Vertex shader compilation] {s}", .{info_log[0..@intCast(log_len)]});
+        try console.flush();
         return;
     }
 
@@ -140,8 +140,8 @@ pub fn main() !void {
     gl.getShaderiv(frag_shad, gl.COMPILE_STATUS, &shader_compiled);
     if (shader_compiled != gl.TRUE) {
         gl.getShaderInfoLog(frag_shad, INFO_LOG_MAX, @ptrCast(&log_len), @ptrCast(&info_log));
-        try stderr.print("[Fragment shader compilation] {s}", .{info_log[0..@intCast(log_len)]});
-        try stderr.flush();
+        try console.print("[Fragment shader compilation] {s}", .{info_log[0..@intCast(log_len)]});
+        try console.flush();
         return;
     }
 
@@ -157,8 +157,8 @@ pub fn main() !void {
     gl.getProgramiv(program, gl.LINK_STATUS, &program_linked);
     if (program_linked != gl.TRUE) {
         gl.getProgramInfoLog(program, INFO_LOG_MAX, @ptrCast(&log_len), @ptrCast(&info_log));
-        try stderr.print("[Program linking] {s}", .{info_log[0..@intCast(log_len)]});
-        try stderr.flush();
+        try console.print("[Program linking] {s}", .{info_log[0..@intCast(log_len)]});
+        try console.flush();
         return;
     }
 
@@ -182,6 +182,8 @@ pub fn main() !void {
     gl.uniform1f(shader_interface.uniforms.cam_near, state.camera.near);
     gl.uniform3fv(shader_interface.uniforms.cam_pos, 1, &state.camera.position.toArray());
 
+    var last_time: f32 = @floatCast(glfw.getTime());
+
     // Render loop
     while (!window.shouldClose()) {
         glfw.pollEvents();
@@ -198,14 +200,23 @@ pub fn main() !void {
         gl.drawArrays(gl.TRIANGLES, 0, vertices.len / VERT_VEC_SIZE);
 
         window.swapBuffers();
+
+        state.dt = @as(f32, @floatCast(glfw.getTime())) - last_time;
+        last_time = @floatCast(glfw.getTime());
     }
 }
 
-const CAM_SPEED = Vec3{.x = 0.1, .y = 0.05, .z = 0.1};
+const CAM_SPEED = Vec3{.x = 5, .y = 3, .z = 5};
 
-fn getInput(window: *glfw.Window) void {
-    const stderr = state.console.writer(Console.STDOUT);
+const NEAR_SENS = 7;
+const NEAR_MIN = 0.1;
+const NEAR_MAX = 100;
 
+const FOV_SENS = 1;
+const FOV_MIN = 30;
+const FOV_MAX = 120;
+
+fn moveCamera(window: *glfw.Window) void {
     const forward: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.w) == glfw.Action.press));
     const backwards: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.s) == glfw.Action.press));
     const right: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.d) == glfw.Action.press));
@@ -218,35 +229,55 @@ fn getInput(window: *glfw.Window) void {
     // TODO: direzioni tutte da invertire
     // e traslare con dt
 
-    const dt: f32 = 1;
-    state.camera.position = state.camera.position.sum(input.mul(CAM_SPEED).mul(dt));
+    state.camera.position = state.camera.position.sum(input.mul(CAM_SPEED).mul(state.dt));
     const shader = state.shader orelse return;
     gl.uniform3fv(shader.uniforms.cam_pos, 1, &state.camera.position.toArray());
 
     // DEBUG!!!
     if (input.length() != 0) {
-        stderr.print("POS: {:5.1}, {:5.1}, {:5.1}\n", .{state.camera.position.x, state.camera.position.y, state.camera.position.z}) catch unreachable;
-        stderr.flush() catch unreachable;
+        const console = state.console.writer(Console.STDOUT);
+        console.print("POS: {:0>5.1}, {:0<5.1}, {:0<5.1}\n", .{state.camera.position.x, state.camera.position.y, state.camera.position.z}) catch unreachable;
+        console.flush() catch unreachable;
     }
 }
 
-const FOV_SENS = 1;
-const MIN_FOV = 30;
-const MAX_FOV = 120;
-
-fn adjustFov(window: *glfw.Window, x_offset: f64 , y_offset: f64) callconv(.c) void {
-    _ = window;
-    _ = x_offset;
+fn adjustCamNear(window: *glfw.Window) void {
+    const up_arrow: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.up) == glfw.Action.press));
+    const down_arrow: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.down) == glfw.Action.press));
 
     const shader = state.shader orelse return;
-    const new_fov = state.camera.fov + @as(f32, @floatCast(-y_offset)) * FOV_SENS;
-    state.camera.fov = std.math.clamp(new_fov, MIN_FOV, MAX_FOV);
+    state.camera.near = std.math.clamp(state.camera.near + (up_arrow - down_arrow) * NEAR_SENS * state.dt, NEAR_MIN, NEAR_MAX);
+    gl.uniform1f(shader.uniforms.cam_near, state.camera.near);
+
+    // DEBUG!!!
+    if (up_arrow - down_arrow != 0) {
+        const console = state.console.writer(Console.STDOUT);
+        console.print("NEAR: {}\n", .{state.camera.near}) catch unreachable;
+        console.flush() catch unreachable;
+    }
+}
+
+fn adjustCamFov(scroll: f32) void {
+    const shader = state.shader orelse return;
+    state.camera.fov = std.math.clamp(state.camera.fov + -scroll * FOV_SENS, FOV_MIN, FOV_MAX);
     gl.uniform1f(shader.uniforms.cam_fov, state.camera.fov);
 
     // DEBUG!!!
-    const stderr = state.console.writer(Console.STDOUT);
-    stderr.print("FOV: {}\n", .{state.camera.fov}) catch unreachable;
-    stderr.flush() catch unreachable;
+    const console = state.console.writer(Console.STDOUT);
+    console.print("FOV: {}\n", .{state.camera.fov}) catch unreachable;
+    console.flush() catch unreachable;
+}
+
+fn getInput(window: *glfw.Window) void {
+    moveCamera(window);
+    adjustCamNear(window);
+}
+
+fn scrollCallback(window: *glfw.Window, x_offset: f64 , y_offset: f64) callconv(.c) void {
+    _ = window;
+    _ = x_offset;
+
+    adjustCamFov(@floatCast(y_offset));
 }
 
 fn fbResizeCallback(window: *glfw.Window, width: c_int, height: c_int) callconv(.c) void {

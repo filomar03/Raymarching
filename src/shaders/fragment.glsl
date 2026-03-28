@@ -51,19 +51,16 @@ vec3 approx_norm(vec3 p) {
 
 void main()
 {
-    vec2 uv = gl_FragCoord.xy / uResolution * 2.0 - 1; // near plane coords
     float aspect_ratio = uResolution.x / uResolution.y;
-    float thf = tan(radians(uFov * 0.5)); // nearplane half height / distance from cam (near) ratio
-    uv *= vec2(thf * uNear);
-    uv.x *= aspect_ratio;
+    float thf = tan(radians(uFov * 0.5)); // projection plane half height / near distance ratio
+    vec2 uv = gl_FragCoord.xy / uResolution * 2.0 - 1; // normalize
+    uv *= vec2(thf * uNear); // scale (according to FOV & near)
+    uv.x *= aspect_ratio; // scale x (to respect ratio)
 
-    // TODO: sistemare near
-
-    vec3 camera = uCamPos;
     vec3 origin = vec3(uv, uNear);
-    vec3 ray = normalize(origin - camera);
+    vec3 ray = normalize(origin);
 
-    vec3 p = origin;
+    vec3 p = origin + uCamPos;
     float travel = 0.0;
     int step = 0;
 
@@ -75,20 +72,17 @@ void main()
         p += ray * d;
 
         if (d <= HIT_DISTANCE) {
-            // DEBUG!!!
-            FragColor = vec4(approx_norm(p).xy, -abs(approx_norm(p)).z, 1);
-            return;
 
             vec3 norm = approx_norm(p);
             vec3 color = HIT;
 
             // -- Directional light
-            // vec3 light_dir = normalize(vec3(-1, -2, 2));
-            // float intensity = 0.9;
+            vec3 light_dir = normalize(vec3(-1, -2, 2));
+            float intensity = 0.9;
 
             // -- Point light
-            vec3 light_pos = vec3(0, 0, 0);
-            vec3 light_dir = normalize(p - light_pos);
+            // vec3 light_pos = vec3(0, 0, 0);
+            // vec3 light_dir = normalize(p - light_pos);
 
             // Ambient lighting
             float ambient_i = 0.05;

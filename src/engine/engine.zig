@@ -7,6 +7,7 @@ pub const State = struct {
     console: ConsoleInterface = .{},
     shader: ?ShaderInterface = null,
     camera: CameraObject = .{},
+    dt: f32 = 0,
 };
 
 pub const ConsoleInterface = struct {
