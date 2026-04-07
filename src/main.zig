@@ -49,15 +49,20 @@ pub fn main() !void {
 
     glfw.makeContextCurrent(window);
 
-    _ = glfw.setFramebufferSizeCallback(window, &fbResizeCallback);
-    _ = glfw.setScrollCallback(window, &scrollCallback);
-
     try opengl.loadCoreProfile(glfw.getProcAddress, OPENGL_MAJOR, OPENGL_MINOR);
 
     var fb_width: c_int = undefined;
     var fb_height: c_int = undefined;
     glfw.getFramebufferSize(window, &fb_width, &fb_height);
     gl.viewport(0, 0, fb_width, fb_height);
+
+    _ = glfw.setFramebufferSizeCallback(window, &fbResizeCallback);
+    _ = glfw.setScrollCallback(window, &scrollCallback);
+
+    try glfw.setInputMode(window, glfw.InputMode.cursor, glfw.Cursor.Mode.disabled);
+    if (glfw.rawMouseMotionSupported()) {
+        try glfw.setInputMode(window, glfw.InputMode.raw_mouse_motion, true);
+    }
 
     // Setup pipeline
     const VERT_VEC_SIZE = 3;
@@ -238,6 +243,17 @@ fn moveCamera(window: *glfw.Window) void {
     }
 }
 
+fn rotateCamera(window: *glfw.Window) void {
+    var mx: f64 = undefined;
+    var my: f64 = undefined;
+    glfw.getCursorPos(window, &mx, &my);
+
+    // DEBUG!!!
+    // const console = state.console.writer(Console.STDOUT);
+    // console.print("MOUSE: {:0>5.1}, {:0<5.1}\n", .{mx, my}) catch unreachable;
+    // console.flush() catch unreachable;
+}
+
 fn adjustCamNear(window: *glfw.Window) void {
     const up_arrow: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.up) == glfw.Action.press));
     const down_arrow: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.down) == glfw.Action.press));
@@ -254,6 +270,17 @@ fn adjustCamNear(window: *glfw.Window) void {
     }
 }
 
+fn detectQuit(window: *glfw.Window) void {
+    glfw.setWindowShouldClose(window, glfw.getKey(window, glfw.Key.escape) == glfw.Action.press);
+}
+
+fn getInput(window: *glfw.Window) void {
+    moveCamera(window);
+    rotateCamera(window);
+    adjustCamNear(window);
+    detectQuit(window);
+}
+
 fn adjustCamFov(scroll: f32) void {
     const shader = state.shader orelse return;
     state.camera.fov = std.math.clamp(state.camera.fov + -scroll * FOV_SENS, FOV_MIN, FOV_MAX);
@@ -263,11 +290,6 @@ fn adjustCamFov(scroll: f32) void {
     const console = state.console.writer(Console.STDOUT);
     console.print("FOV: {}\n", .{state.camera.fov}) catch unreachable;
     console.flush() catch unreachable;
-}
-
-fn getInput(window: *glfw.Window) void {
-    moveCamera(window);
-    adjustCamNear(window);
 }
 
 fn scrollCallback(window: *glfw.Window, x_offset: f64 , y_offset: f64) callconv(.c) void {

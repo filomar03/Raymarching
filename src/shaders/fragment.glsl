@@ -60,11 +60,13 @@ vec3 approx_norm(vec3 p) {
     return norm;
 }
 
-#define DIR_LIGHT 999999
+#define DIR_LIGHT 99999999
 #define AMBIENT_I 0.15
-#define LIGHTS_NUM 1
+#define LIGHTS_NUM 3
 Light lights[LIGHTS_NUM] = Light[](
-    Light(vec3(0.0, 3.0, 0.0), true, 0.7)
+    Light(vec3(0.0, 3.0, 0.0), true, 0.7),
+    Light(vec3(3.0, 3.0, 9.0), false, 0.2),
+    Light(normalize(vec3(1.0, 3.0, -1.0)) * DIR_LIGHT, false, 0.2)
 );
 
 float computeDiffuse() { // computes diffuse lighting (Lambert model)
