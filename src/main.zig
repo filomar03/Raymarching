@@ -195,13 +195,13 @@ pub fn main() !void {
 
         getInput(window);
 
-        // gl.clearColor(0.0, 0.0, 0.0, 1.0); // TODO: should i call these
-        // gl.clear(gl.COLOR_BUFFER_BIT); // TODO: should i call these
+        // gl.clearColor(0.0, 0.0, 0.0, 1.0); // TODO: should i call these?
+        // gl.clear(gl.COLOR_BUFFER_BIT); // TODO: should i call these?
 
         gl.uniform1f(shader_interface.uniforms.time, @floatCast(glfw.getTime()));
 
-        // gl.useProgram(program); // TODO: should i call these
-        // gl.bindVertexArray(vao); // TODO: should i call these
+        // gl.useProgram(program); // TODO: should i call these?
+        // gl.bindVertexArray(vao); // TODO: should i call these?
         gl.drawArrays(gl.TRIANGLES, 0, vertices.len / VERT_VEC_SIZE);
 
         window.swapBuffers();
@@ -236,7 +236,7 @@ fn moveCamera(window: *glfw.Window) void {
     gl.uniform3fv(shader.uniforms.cam_pos, 1, &state.camera.position.toArray());
 
     // DEBUG!!!
-    if (input.length() != 0) {
+    if (input.lenght() != 0) {
         const console = state.console.writer(Console.STDOUT);
         console.print("POS: {:0>5.1}, {:0<5.1}, {:0<5.1}\n", .{state.camera.position.x, state.camera.position.y, state.camera.position.z}) catch unreachable;
         console.flush() catch unreachable;
@@ -249,9 +249,9 @@ fn rotateCamera(window: *glfw.Window) void {
     glfw.getCursorPos(window, &mx, &my);
 
     // DEBUG!!!
-    // const console = state.console.writer(Console.STDOUT);
-    // console.print("MOUSE: {:0>5.1}, {:0<5.1}\n", .{mx, my}) catch unreachable;
-    // console.flush() catch unreachable;
+    const console = state.console.writer(Console.STDOUT);
+    console.print("MOUSE: {:0>5.1}, {:0<5.1}\n", .{mx, my}) catch unreachable;
+    console.flush() catch unreachable;
 }
 
 fn adjustCamNear(window: *glfw.Window) void {

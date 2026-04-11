@@ -58,4 +58,5 @@ pub const CameraObject = struct {
     fov: f32 = CAM_DEF_FOV,
     near: f32 = CAM_DEF_NEAR,
     position: Vec3 = .{},
+    rotation: glm.Quaternion = .{},
 };

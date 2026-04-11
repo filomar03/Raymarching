@@ -11,6 +11,7 @@
 #define FAR vec3(0.0, 0.0, 0.0)
 #define OUT_OF_STEP vec3(0.3, 0, 0)
 
+// Uniforms
 uniform vec2 uResolution;
 uniform float uTime;
 uniform float uFov;
@@ -18,6 +19,7 @@ uniform float uNear;
 uniform vec3 uCamPos;
 out vec4 FragColor;
 
+// Structs
 struct Light {
     vec3 position;
     bool follow_cam;
@@ -29,12 +31,7 @@ struct Material {
     float shininess;
 };
 
-float sdSquare(vec3 p, float size) {
-    vec2 d = abs(p.xy) - vec2(size);
-    return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
-}
-
-float sdSphere(vec3 center, float radius) {
+float sdSphere(vec3 center, float radius) { // TODO: use center and p
     return length(center) - radius;
 }
 
@@ -48,18 +45,6 @@ float map(vec3 p) {
     return min(sp1, sp2);
 }
 
-vec3 approx_norm(vec3 p) {
-    // central difference gradient
-    vec2 h = vec2(EPSILON, 0.0);
-
-    float dx = map(p + h.xyy) - map(p - h.xyy);
-    float dy = map(p + h.yxy) - map(p - h.yxy);
-    float dz = map(p + h.yyx) - map(p - h.yyx);
-
-    vec3 norm = normalize(vec3(dx, dy, dz));
-    return norm;
-}
-
 #define DIR_LIGHT 99999999
 #define AMBIENT_I 0.15
 #define LIGHTS_NUM 3
@@ -69,16 +54,33 @@ Light lights[LIGHTS_NUM] = Light[](
     Light(normalize(vec3(1.0, 3.0, -1.0)) * DIR_LIGHT, false, 0.2)
 );
 
-float computeDiffuse() { // computes diffuse lighting (Lambert model)
-    return 1.0; // TODO: move here calculations
+float computeDiffuse(vec3 p, vec3 norm, Light l) { // computes diffuse lighting (Lambert model)
+    vec3 p2l_dir = normalize(l.position - p);
+    return max(0, dot(norm, p2l_dir)) * l.intensity;
 }
 
-float computeSpecular() { // computes specular lighting (Phong model)
-    return 1.0; // TODO: move here calculations
+float computeSpecular(vec3 p, vec3 norm, Light l, Material mat) { // computes specular lighting (Phong model)
+    vec3 l2p_dir = normalize(p - l.position);
+    vec3 reflection = reflect(l2p_dir, norm); // TODO: maybe i should normalize, maybe even just to correct fp errors
+    vec3 p2cam_dir = normalize(uCamPos - p);
+    return pow(max(0, dot(reflection, p2cam_dir)), mat.shininess);
+}
+
+vec3 approx_norm(vec3 p) {
+    vec2 h = vec2(EPSILON, 0.0);
+
+    // central difference gradient
+    float dx = map(p + h.xyy) - map(p - h.xyy);
+    float dy = map(p + h.yxy) - map(p - h.yxy);
+    float dz = map(p + h.yyx) - map(p - h.yyx);
+
+    vec3 norm = normalize(vec3(dx, dy, dz));
+    return norm;
 }
 
 void main()
 {
+    // TODO: some calculation can be done on CPU
     float aspect_ratio = uResolution.x / uResolution.y;
     float thf = tan(radians(uFov * 0.5)); // projection plane half height / near distance ratio
     vec2 uv = gl_FragCoord.xy / uResolution * 2.0 - 1; // normalize
@@ -86,6 +88,7 @@ void main()
     uv.x *= aspect_ratio; // scale x (to respect ratio)
 
     vec3 origin = vec3(uv, uNear);
+    // TODO: ottenere matrice e ruotare origin
     vec3 ray = normalize(origin);
 
     vec3 p = origin + uCamPos;
@@ -99,11 +102,10 @@ void main()
 
         p += ray * d;
 
-        if (d <= HIT_DISTANCE) {
+        if (d <= HIT_DISTANCE) { // this branch splits the frontwave!!
             vec3 norm = approx_norm(p);
             Material mat = Material(HIT, 512);
 
-            // ambient lighting
             float ambient = AMBIENT_I;
             float diffuse = 0.0;
             float specular = 0.0;
@@ -115,12 +117,8 @@ void main()
                     l.position += uCamPos;
                 }
 
-                vec3 p2l_dir = normalize(l.position - p);
-                diffuse += max(0, dot(norm, p2l_dir)) * l.intensity;
-                vec3 l2p_dir = -p2l_dir;
-                vec3 reflection = reflect(l2p_dir, norm); // TODO: maybe i should normalize, maybe even just to correct fp errors
-                vec3 p2cam_dir = normalize(uCamPos - p);
-                specular += pow(max(0, dot(reflection, p2cam_dir)), mat.shininess);
+                diffuse += computeDiffuse(p, norm, l);
+                specular += computeSpecular(p, norm, l, mat);
             }
 
             FragColor = vec4((ambient + diffuse + specular) * mat.color, 1);
