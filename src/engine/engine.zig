@@ -1,8 +1,6 @@
 const std = @import("std");
 const glm = @import("glm.zig");
 
-const Vec3 = glm.Vec(3);
-
 pub const State = struct {
     console: ConsoleInterface = .{},
     shader: ?ShaderInterface = null,
@@ -48,6 +46,7 @@ pub const ShaderInterface = struct {
         cam_fov: c_int,
         cam_near: c_int,
         cam_pos: c_int,
+        cam_rot: c_int,
     };
 };
 
@@ -57,6 +56,6 @@ const CAM_DEF_NEAR = 1;
 pub const CameraObject = struct {
     fov: f32 = CAM_DEF_FOV,
     near: f32 = CAM_DEF_NEAR,
-    position: Vec3 = .{},
+    position: glm.Vec3 = .{},
     rotation: glm.Quaternion = .{},
 };

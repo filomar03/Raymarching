@@ -17,6 +17,7 @@ uniform float uTime;
 uniform float uFov;
 uniform float uNear;
 uniform vec3 uCamPos;
+uniform vec4 uCamRot;
 out vec4 FragColor;
 
 // Structs
@@ -39,7 +40,7 @@ float map(vec3 p) {
     vec3 sp1_origin = vec3(0, 0, 10);
     vec3 sp2_origin = vec3(10, 0, 20);
 
-    float sp1 = sdSphere(sp1_origin - p, 3.0 + abs(sin(uTime * 1.2) * 2.0));
+    float sp1 = sdSphere(sp1_origin - p, 3.0 + abs(sin(1 * 1.2) * 2.0));
     float sp2 = sdSphere(sp2_origin - p, 8);
 
     return min(sp1, sp2);
@@ -78,6 +79,10 @@ vec3 approx_norm(vec3 p) {
     return norm;
 }
 
+vec3 rotate(vec4 q, vec3 p) { // rotate a p with a unit q
+    return p + 2 * q.w * cross(q.xyz, p) + 2 * cross(q.xyz, cross(q.xyz, p));
+}
+
 void main()
 {
     // TODO: some calculation can be done on CPU
@@ -88,8 +93,7 @@ void main()
     uv.x *= aspect_ratio; // scale x (to respect ratio)
 
     vec3 origin = vec3(uv, uNear);
-    // TODO: ottenere matrice e ruotare origin
-    vec3 ray = normalize(origin);
+    vec3 ray = normalize(rotate(uCamRot, origin));
 
     vec3 p = origin + uCamPos;
     float travel = 0.0;

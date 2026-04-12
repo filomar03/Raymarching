@@ -6,8 +6,6 @@ const glm = @import("engine/glm.zig");
 const zm = @import("zmath");
 
 const Console = engine.ConsoleInterface.Kind;
-const Vec3 = glm.Vec(3);
-const Vec2 = glm.Vec(2);
 
 const OPENGL_MAJOR = 3;
 const OPENGL_MINOR = 3;
@@ -177,6 +175,7 @@ pub fn main() !void {
             .cam_fov = gl.getUniformLocation(program, "uFov"),
             .cam_near = gl.getUniformLocation(program, "uNear"),
             .cam_pos = gl.getUniformLocation(program, "uCamPos"),
+            .cam_rot = gl.getUniformLocation(program, "uCamRot"),
         }
     };
 
@@ -206,12 +205,15 @@ pub fn main() !void {
 
         window.swapBuffers();
 
+        try console.print("FRAMETIME: {}\n", .{state.dt});
+        try console.flush();
+
         state.dt = @as(f32, @floatCast(glfw.getTime())) - last_time;
         last_time = @floatCast(glfw.getTime());
     }
 }
 
-const CAM_SPEED = Vec3{.x = 7.5, .y = 3, .z = 7.5};
+const CAM_SPEED = glm.Vec3{.x = 7.5, .y = 3, .z = 7.5};
 
 const NEAR_SENS = 7;
 const NEAR_MIN = 0.1;
@@ -221,6 +223,9 @@ const FOV_SENS = 1;
 const FOV_MIN = 30;
 const FOV_MAX = 120;
 
+const CAM_VERT_SENS = 1;
+const CAM_HORZ_SENS = 1;
+
 fn moveCamera(window: *glfw.Window) void {
     const forward: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.w) == glfw.Action.press));
     const backwards: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.s) == glfw.Action.press));
@@ -228,29 +233,52 @@ fn moveCamera(window: *glfw.Window) void {
     const left: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.a) == glfw.Action.press));
     const up: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.q) == glfw.Action.press));
     const down: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.e) == glfw.Action.press));
-    var input: Vec3 = .{.x = right + -left, .y = up + -down, .z = forward + -backwards};
+    var input: glm.Vec3 = .{.x = right + -left, .y = up + -down, .z = forward + -backwards};
     input = input.normalize();
 
-    state.camera.position = state.camera.position.sum(input.mul(CAM_SPEED).mul(state.dt));
+    var pos = &state.camera.position;
+    pos.* = pos.sum(input.mul(CAM_SPEED).mul(state.dt));
     const shader = state.shader orelse return;
     gl.uniform3fv(shader.uniforms.cam_pos, 1, &state.camera.position.toArray());
 
     // DEBUG!!!
     if (input.lenght() != 0) {
         const console = state.console.writer(Console.STDOUT);
-        console.print("POS: {:0>5.1}, {:0<5.1}, {:0<5.1}\n", .{state.camera.position.x, state.camera.position.y, state.camera.position.z}) catch unreachable;
+        console.print("POS: {:0>5.1}, {:0<5.1}, {:0<5.1}\n", .{pos.x, pos.y, pos.z}) catch unreachable;
         console.flush() catch unreachable;
     }
 }
+
+const Y_AXIS: glm.Vec3 = .{
+    .x = 0,
+    .y = 1,
+    .z = 0,
+};
+
+const X_AXIS: glm.Vec3 = .{
+    .x = 1,
+    .y = 0,
+    .z = 0,
+};
 
 fn rotateCamera(window: *glfw.Window) void {
     var mx: f64 = undefined;
     var my: f64 = undefined;
     glfw.getCursorPos(window, &mx, &my);
 
+    const rot = &state.camera.rotation;
+    const shader = state.shader orelse return;
+
+    const angle = @as(f32, @floatCast(mx)) * CAM_HORZ_SENS * state.dt;
+    const new_rot = glm.Quaternion.fromAxis(Y_AXIS, angle).normalize();
+    const q = rot.composeRotation(new_rot).normalize();
+    rot.* = q;
+
+    gl.uniform4f(shader.uniforms.cam_rot, q.i, q.j, q.k, q.w);
+
     // DEBUG!!!
     const console = state.console.writer(Console.STDOUT);
-    console.print("MOUSE: {:0>5.1}, {:0<5.1}\n", .{mx, my}) catch unreachable;
+    console.print("QUAT: {:.3}, {:.3}, {:.3}, {:.3} {}\n", .{q.w, q.i, q.j, q.k, q.lenght()}) catch unreachable;
     console.flush() catch unreachable;
 }
 

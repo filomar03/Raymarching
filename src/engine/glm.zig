@@ -1,14 +1,12 @@
 const std = @import("std");
 const math = std.math;
 
-const Vec3 = Vec(3);
-
 const EPS = 1e-6;
-inline fn approxEq(a: f32, b: f32) bool {
+pub inline fn approxEq(a: f32, b: f32) bool {
     return std.math.approxEqAbs(f32, a, b, EPS);
 }
 
-pub fn Vec(dim: usize) type {
+fn Vec(dim: usize) type {
     if (dim < 2 or dim > 4) {
         @compileError("Vec supports only dimensions between 2 and 4");
     }
@@ -114,6 +112,9 @@ pub fn Vec(dim: usize) type {
         }
     };
 }
+
+pub const Vec2 = Vec(2);
+pub const Vec3 = Vec(3);
 
 pub const Quaternion = struct {
     w: f32 = 1,
@@ -233,6 +234,11 @@ pub const Quaternion = struct {
         _ = self;
         _ = other;
         _ = alpha;
+        @panic("Not implemented");
+    }
+
+    pub fn clamp(self: Self) Self {
+        _ = self;
         @panic("Not implemented");
     }
 
