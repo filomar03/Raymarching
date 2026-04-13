@@ -92,10 +92,9 @@ void main()
     uv *= vec2(thf * uNear); // scale (according to FOV & near)
     uv.x *= aspect_ratio; // scale x (to respect ratio)
 
-    vec3 origin = vec3(uv, uNear);
-    vec3 ray = normalize(rotate(uCamRot, origin));
+    vec3 ray = normalize(rotate(uCamRot, vec3(uv, uNear)));
 
-    vec3 p = origin + uCamPos;
+    vec3 p = uCamPos;
     float travel = 0.0;
     int step = 0;
 
