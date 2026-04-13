@@ -21,6 +21,9 @@ const MAX_SHADER_SIZE = 1024 * 1024; // 1 Mib
 
 const INFO_LOG_MAX = 512;
 
+const VSYNC_ON = 1;
+const VSYNC_OFF = 0;
+
 const gl = opengl.bindings;
 
 var state: engine.State = .{};
@@ -46,6 +49,7 @@ pub fn main() !void {
     defer window.destroy();
 
     glfw.makeContextCurrent(window);
+    glfw.swapInterval(VSYNC_ON);
 
     try opengl.loadCoreProfile(glfw.getProcAddress, OPENGL_MAJOR, OPENGL_MINOR);
 
@@ -188,16 +192,18 @@ pub fn main() !void {
 
     var last_time: f32 = @floatCast(glfw.getTime());
 
+
     // Render loop
+    var frame_counter: u32 = 0;
     while (!window.shouldClose()) {
         glfw.pollEvents();
 
         getInput(window);
 
+        gl.uniform1f(shader_interface.uniforms.time, @floatCast(glfw.getTime()));
+
         // gl.clearColor(0.0, 0.0, 0.0, 1.0); // TODO: should i call these?
         // gl.clear(gl.COLOR_BUFFER_BIT); // TODO: should i call these?
-
-        gl.uniform1f(shader_interface.uniforms.time, @floatCast(glfw.getTime()));
 
         // gl.useProgram(program); // TODO: should i call these?
         // gl.bindVertexArray(vao); // TODO: should i call these?
@@ -205,14 +211,20 @@ pub fn main() !void {
 
         window.swapBuffers();
 
-        try console.print("FRAMETIME: {}\n", .{state.dt});
-        try console.flush();
+        if (frame_counter % 60 == 0) {
+            try console.print("\x1b[2J\x1b[HFPS: {:.0}", .{1 / state.debug.getAvgFrameTime()});
+            try console.flush();
+        }
+
+        frame_counter += 1;
 
         state.dt = @as(f32, @floatCast(glfw.getTime())) - last_time;
+        state.debug.addFrametime(state.dt);
         last_time = @floatCast(glfw.getTime());
     }
 }
 
+const CAM_SENS = 0.005;
 const CAM_SPEED = glm.Vec3{.x = 7.5, .y = 3, .z = 7.5};
 
 const NEAR_SENS = 7;
@@ -222,32 +234,6 @@ const NEAR_MAX = 100;
 const FOV_SENS = 1;
 const FOV_MIN = 30;
 const FOV_MAX = 120;
-
-const CAM_VERT_SENS = 1;
-const CAM_HORZ_SENS = 1;
-
-fn moveCamera(window: *glfw.Window) void {
-    const forward: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.w) == glfw.Action.press));
-    const backwards: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.s) == glfw.Action.press));
-    const right: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.d) == glfw.Action.press));
-    const left: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.a) == glfw.Action.press));
-    const up: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.q) == glfw.Action.press));
-    const down: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.e) == glfw.Action.press));
-    var input: glm.Vec3 = .{.x = right + -left, .y = up + -down, .z = forward + -backwards};
-    input = input.normalize();
-
-    var pos = &state.camera.position;
-    pos.* = pos.sum(input.mul(CAM_SPEED).mul(state.dt));
-    const shader = state.shader orelse return;
-    gl.uniform3fv(shader.uniforms.cam_pos, 1, &state.camera.position.toArray());
-
-    // DEBUG!!!
-    if (input.lenght() != 0) {
-        const console = state.console.writer(Console.STDOUT);
-        console.print("POS: {:0>5.1}, {:0<5.1}, {:0<5.1}\n", .{pos.x, pos.y, pos.z}) catch unreachable;
-        console.flush() catch unreachable;
-    }
-}
 
 const Y_AXIS: glm.Vec3 = .{
     .x = 0,
@@ -261,26 +247,76 @@ const X_AXIS: glm.Vec3 = .{
     .z = 0,
 };
 
+const Z_AXIS: glm.Vec3 = .{
+    .x = 0,
+    .y = 0,
+    .z = 1,
+};
+
+fn moveCamera(window: *glfw.Window) void {
+    const forward: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.w) == glfw.Action.press));
+    const backwards: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.s) == glfw.Action.press));
+    const right: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.d) == glfw.Action.press));
+    const left: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.a) == glfw.Action.press));
+    const up: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.q) == glfw.Action.press));
+    const down: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.e) == glfw.Action.press));
+    var input: glm.Vec3 = .{.x = right + -left, .y = up + -down, .z = forward + -backwards};
+    input = input.normalize();
+
+    const cam_forward = state.camera.rotation.rotateVec(input);
+
+    var pos = &state.camera.position;
+    pos.* = pos.sum(cam_forward.mul(CAM_SPEED).mul(state.dt));
+    const shader = state.shader orelse return;
+    gl.uniform3fv(shader.uniforms.cam_pos, 1, &state.camera.position.toArray());
+
+    // DEBUG!!!
+    // if (input.lenght() != 0) {
+    //     const console = state.console.writer(Console.STDOUT);
+    //     console.print("POS: {:0>5.1}, {:0<5.1}, {:0<5.1}\n", .{pos.x, pos.y, pos.z}) catch unreachable;
+    //     console.flush() catch unreachable;
+    // }
+}
+
+var prev_mx: f64 = 0;
+var prev_my: f64 = 0;
+
 fn rotateCamera(window: *glfw.Window) void {
     var mx: f64 = undefined;
     var my: f64 = undefined;
     glfw.getCursorPos(window, &mx, &my);
 
+    const dmx = @as(f32, @floatCast(mx - prev_mx));
+    const dmy = @as(f32, @floatCast(my - prev_my));
+
     const rot = &state.camera.rotation;
     const shader = state.shader orelse return;
 
-    const angle = @as(f32, @floatCast(mx)) * CAM_HORZ_SENS * state.dt;
-    const new_rot = glm.Quaternion.fromAxis(Y_AXIS, angle).normalize();
-    const q = rot.composeRotation(new_rot).normalize();
-    rot.* = q;
+    const y_angle = dmx * CAM_SENS;
+    const y_rot = glm.Quaternion.fromAxis(Y_AXIS, y_angle);
+    rot.* = y_rot.mul(rot.*);
 
-    gl.uniform4f(shader.uniforms.cam_rot, q.i, q.j, q.k, q.w);
+    const x_angle = dmy * CAM_SENS;
+    const new_x_axis = rot.*.rotateVec(X_AXIS);
+    const x_rot = glm.Quaternion.fromAxis(new_x_axis, x_angle);
+
+    rot.* = x_rot.mul(rot.*).normalize(); // normalize to stop errors from propagating through frames
+
+    gl.uniform4f(shader.uniforms.cam_rot, rot.*.i, rot.*.j, rot.*.k, rot.*.w);
+
+    prev_mx = mx;
+    prev_my = my;
 
     // DEBUG!!!
-    const console = state.console.writer(Console.STDOUT);
-    console.print("QUAT: {:.3}, {:.3}, {:.3}, {:.3} {}\n", .{q.w, q.i, q.j, q.k, q.lenght()}) catch unreachable;
-    console.flush() catch unreachable;
+    // const keya = glfw.getKey(window, glfw.Key.p);
+    // if (keya == glfw.Action.press and old == glfw.Action.release) {
+    //     const console = state.console.writer(Console.STDOUT);
+    //     console.print("y: {any}\nx: {any}\nr: {any}\nnew: {any}\n", .{y_rot, x_rot, rot, rot.*}) catch unreachable;
+    //     console.flush() catch unreachable;
+    // }
+    // old = keya;
 }
+// var old = glfw.Action.release;
 
 fn adjustCamNear(window: *glfw.Window) void {
     const up_arrow: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.up) == glfw.Action.press));
@@ -291,11 +327,11 @@ fn adjustCamNear(window: *glfw.Window) void {
     gl.uniform1f(shader.uniforms.cam_near, state.camera.near);
 
     // DEBUG!!!
-    if (up_arrow - down_arrow != 0) {
-        const console = state.console.writer(Console.STDOUT);
-        console.print("NEAR: {}\n", .{state.camera.near}) catch unreachable;
-        console.flush() catch unreachable;
-    }
+    // if (up_arrow - down_arrow != 0) {
+    //     const console = state.console.writer(Console.STDOUT);
+    //     console.print("NEAR: {}\n", .{state.camera.near}) catch unreachable;
+    //     console.flush() catch unreachable;
+    // }
 }
 
 fn detectQuit(window: *glfw.Window) void {
@@ -315,9 +351,9 @@ fn adjustCamFov(scroll: f32) void {
     gl.uniform1f(shader.uniforms.cam_fov, state.camera.fov);
 
     // DEBUG!!!
-    const console = state.console.writer(Console.STDOUT);
-    console.print("FOV: {}\n", .{state.camera.fov}) catch unreachable;
-    console.flush() catch unreachable;
+    // const console = state.console.writer(Console.STDOUT);
+    // console.print("FOV: {}\n", .{state.camera.fov}) catch unreachable;
+    // console.flush() catch unreachable;
 }
 
 fn scrollCallback(window: *glfw.Window, x_offset: f64 , y_offset: f64) callconv(.c) void {

@@ -6,6 +6,7 @@ pub const State = struct {
     shader: ?ShaderInterface = null,
     camera: CameraObject = .{},
     dt: f32 = 0,
+    debug: DebugInfo = .{},
 };
 
 pub const ConsoleInterface = struct {
@@ -58,4 +59,23 @@ pub const CameraObject = struct {
     near: f32 = CAM_DEF_NEAR,
     position: glm.Vec3 = .{},
     rotation: glm.Quaternion = .{},
+};
+
+const FRAMETIME_RBUF_DIM = 60;
+
+pub const DebugInfo = struct {
+    frametime_rbuf: @Vector(FRAMETIME_RBUF_DIM, f32) = @splat(0),
+    rbuf_idx: u32 = 0,
+
+    const Self = @This();
+
+    pub fn addFrametime(self: *Self, ft: f32) void {
+        self.frametime_rbuf[self.rbuf_idx] = ft;
+        self.rbuf_idx = (self.rbuf_idx + 1) % FRAMETIME_RBUF_DIM;
+    }
+
+    pub fn getAvgFrameTime(self: Self) f32 {
+        const acc: f32 = @reduce(std.builtin.ReduceOp.Add, self.frametime_rbuf);
+        return acc / FRAMETIME_RBUF_DIM;
+    }
 };

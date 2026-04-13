@@ -40,7 +40,7 @@ float map(vec3 p) {
     vec3 sp1_origin = vec3(0, 0, 10);
     vec3 sp2_origin = vec3(10, 0, 20);
 
-    float sp1 = sdSphere(sp1_origin - p, 3.0 + abs(sin(1 * 1.2) * 2.0));
+    float sp1 = sdSphere(sp1_origin - p, 3.0 + abs(sin(uTime * 1.2) * 2.0));
     float sp2 = sdSphere(sp2_origin - p, 8);
 
     return min(sp1, sp2);
@@ -51,7 +51,7 @@ float map(vec3 p) {
 #define LIGHTS_NUM 3
 Light lights[LIGHTS_NUM] = Light[](
     Light(vec3(0.0, 3.0, 0.0), true, 0.7),
-    Light(vec3(3.0, 3.0, 9.0), false, 0.2),
+    Light(vec3(3.0, 7.0, 9.0), false, 0.2),
     Light(normalize(vec3(1.0, 3.0, -1.0)) * DIR_LIGHT, false, 0.2)
 );
 

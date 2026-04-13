@@ -40,7 +40,7 @@ fn Vec(dim: usize) type {
         pub fn normalize(self: Self) Self {
             const l = self.lenght();
 
-            if (approxEq(l, 0) or approxEq(l, 1)) return self;
+            if (approxEq(l, 0)) return .{};
 
             var res: Self = .{};
 
@@ -125,7 +125,7 @@ pub const Quaternion = struct {
     const Self = @This();
 
     pub fn fromAxis(axis: Vec3, angle: f32) Self {
-        if (axis.lenght() != 1.0) {
+        if (!approxEq(axis.lenght(), 1)) {
             @panic("Cannot create a quaternion from a non normalized axis");
         }
 
@@ -218,11 +218,6 @@ pub const Quaternion = struct {
             .j = -self.j / len_sq,
             .k = -self.k / len_sq,
         };
-    }
-
-    pub fn composeRotation(self: Self, q2: Self) Self {
-        const q1 = self.normalize();
-        return q1.mul(q2.normalize()).mul(q1.inverse());
     }
 
     pub fn rotateVec(self: Self, other: Vec3) Vec3 {
