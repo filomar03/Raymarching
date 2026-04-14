@@ -62,7 +62,7 @@ float computeDiffuse(vec3 p, vec3 norm, Light l) { // computes diffuse lighting 
 
 float computeSpecular(vec3 p, vec3 norm, Light l, Material mat) { // computes specular lighting (Phong model)
     vec3 l2p_dir = normalize(p - l.position);
-    vec3 reflection = reflect(l2p_dir, norm); // TODO: maybe i should normalize, maybe even just to correct fp errors
+    vec3 reflection = reflect(l2p_dir, norm);
     vec3 p2cam_dir = normalize(uCamPos - p);
     return pow(max(0, dot(reflection, p2cam_dir)), mat.shininess);
 }

@@ -28,12 +28,10 @@ pub const ConsoleInterface = struct {
     }
 
     pub fn writer(self: *Self, console: Kind) *std.Io.Writer {
-        // TODO: non devo produrre un valore per evitare di creare
-        // un local e quindi ritornare un puntatore invalido
-        return &switch (console) {
-            .STDOUT => self.stdout orelse @panic("stdout not initialized"),
-            .STDERR => self.stderr orelse @panic("stderr not initialized"),
-        }.interface;
+        return &(switch (console) {
+            .STDOUT => self.stdout,
+            .STDERR => self.stderr,
+        } orelse @panic("console not initialized")).interface;
     }
 };
 
@@ -64,6 +62,10 @@ pub const CameraObject = struct {
 const FRAMETIME_RBUF_DIM = 60;
 
 pub const DebugInfo = struct {
+    performance: PerfInfo = .{},
+};
+
+pub const PerfInfo = struct {
     frametime_rbuf: @Vector(FRAMETIME_RBUF_DIM, f32) = @splat(0),
     rbuf_idx: u32 = 0,
 
