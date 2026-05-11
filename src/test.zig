@@ -1,5 +1,5 @@
 const std = @import("std");
-const engine = @import("engine/engine.zig");
+const engine = @import("engine/state.zig");
 const glm = @import("engine/glm.zig");
 
 const Kind = engine.ConsoleInterface.Kind;

@@ -6,7 +6,7 @@ pub inline fn approxEq(a: f32, b: f32) bool {
     return std.math.approxEqAbs(f32, a, b, EPS);
 }
 
-fn Vec(dim: usize) type {
+pub fn Vec(dim: usize) type {
     if (dim < 2 or dim > 4) {
         @compileError("Vec supports only dimensions between 2 and 4");
     }
