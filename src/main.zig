@@ -66,6 +66,19 @@ pub fn main() !void {
         try glfw.setInputMode(window, glfw.InputMode.raw_mouse_motion, true);
     }
 
+    // Load shaders
+    const shader_path = try std.fs.path.join(allocator, &[_][]const u8{ SRC_DIR, SHADER_DIR });
+    defer allocator.free(shader_path);
+
+    var shader_dir = try std.fs.cwd().openDir(shader_path, .{});
+    defer shader_dir.close();
+
+    const vert_src = try shader_dir.readFileAllocOptions(allocator, VERTEX_SHADER_FILE, MAX_SHADER_SIZE, null, .of(u8), 0);
+    defer allocator.free(vert_src);
+
+    const frag_src = try shader_dir.readFileAllocOptions(allocator, FRAGMENT_SHADER_FILE, MAX_SHADER_SIZE, null, .of(u8), 0);
+    defer allocator.free(frag_src);
+
     // Setup pipeline
     const VERT_VEC_SIZE = 3;
     const vertices = [_]gl.Float{
@@ -94,19 +107,6 @@ pub fn main() !void {
 
     gl.vertexAttribPointer(0, VERT_VEC_SIZE, gl.FLOAT, gl.FALSE, @sizeOf([VERT_VEC_SIZE]gl.Float), @ptrFromInt(0));
     gl.enableVertexAttribArray(0);
-
-    // Setup shaders
-    const shader_path = try std.fs.path.join(allocator, &[_][]const u8{ SRC_DIR, SHADER_DIR });
-    defer allocator.free(shader_path);
-
-    var shader_dir = try std.fs.cwd().openDir(shader_path, .{});
-    defer shader_dir.close();
-
-    const vert_src = try shader_dir.readFileAllocOptions(allocator, VERTEX_SHADER_FILE, MAX_SHADER_SIZE, null, .of(u8), 0);
-    defer allocator.free(vert_src);
-
-    const frag_src = try shader_dir.readFileAllocOptions(allocator, FRAGMENT_SHADER_FILE, MAX_SHADER_SIZE, null, .of(u8), 0);
-    defer allocator.free(frag_src);
 
     const vert_shad = gl.createShader(gl.VERTEX_SHADER);
     defer gl.deleteShader(vert_shad);
@@ -178,15 +178,12 @@ pub fn main() !void {
     while (!window.shouldClose()) {
         glfw.pollEvents();
 
+        // no need to clear since every pixel in the framebuffer is always overwritten
+
         getInput(window);
 
         gl.uniform1f(shader_interface.uniforms.time, @floatCast(glfw.getTime()));
 
-        // gl.clearColor(0.0, 0.0, 0.0, 1.0); // TODO: should i call these?
-        // gl.clear(gl.COLOR_BUFFER_BIT); // TODO: should i call these?
-
-        // gl.useProgram(program); // TODO: should i call these?
-        // gl.bindVertexArray(vao); // TODO: should i call these?
         gl.drawArrays(gl.TRIANGLES, 0, vertices.len / VERT_VEC_SIZE);
 
         window.swapBuffers();
@@ -204,6 +201,7 @@ pub fn main() !void {
     }
 }
 
+// Input handling
 fn getInput(window: *glfw.Window) void {
     moveCamera(window);
     rotateCamera(window);
@@ -270,8 +268,8 @@ fn rotateCamera(window: *glfw.Window) void {
     rot.* = y_rot.mul(rot.*);
 
     const x_angle = dmy * CAM_SENS;
-    const new_x_axis = rot.*.rotateVec(X_AXIS);
-    const x_rot = glm.Quaternion.fromAxis(new_x_axis, x_angle);
+    const rotated_x_axis = rot.*.rotateVec(X_AXIS);
+    const x_rot = glm.Quaternion.fromAxis(rotated_x_axis, x_angle);
 
     rot.* = x_rot.mul(rot.*).normalize(); // normalize to stop errors from propagating through frames
 

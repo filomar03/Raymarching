@@ -1,23 +1,20 @@
 #version 330 core
 
-// Rendering params
-#define HIT_DISTANCE 0.01
-#define MAX_STEP 300
-#define MAX_TRAVEL 5000.0
-#define EPSILON 0.0001
-
-// Colors
-#define HIT vec3(1.0, 0.95, 0.85)
-#define FAR vec3(0.0, 0.0, 0.0)
-#define OUT_OF_STEP vec3(0.3, 0, 0)
-
 // Uniforms
 uniform vec2 uResolution;
 uniform float uTime;
 uniform float uFov;
 uniform vec3 uCamPos;
 uniform vec4 uCamRot;
+
+// Shader output
 out vec4 FragColor;
+
+// Rendering params
+#define HIT_DISTANCE 0.01
+#define MAX_STEP 300
+#define MAX_TRAVEL 5000.0
+#define EPSILON 0.0001
 
 // Structs
 struct Light {
@@ -30,6 +27,11 @@ struct Material {
     vec3 color;
     float shininess;
 };
+
+// Colors
+#define HIT vec3(1.0, 0.95, 0.85)
+#define FAR vec3(0.0, 0.0, 0.0)
+#define OUT_OF_STEP vec3(0.3, 0, 0)
 
 float sdSphere(vec3 center, float radius) { // TODO: use center and p
     return length(center) - radius;
@@ -54,12 +56,12 @@ Light lights[LIGHTS_NUM] = Light[](
     Light(normalize(vec3(1.0, 3.0, -1.0)) * DIR_LIGHT, false, 0.2)
 );
 
-float computeDiffuse(vec3 p, vec3 norm, Light l) { // computes diffuse lighting (Lambert model)
+float computeDiffuse(vec3 p, vec3 norm, Light l) { // Lambert model
     vec3 p2l_dir = normalize(l.position - p);
     return max(0, dot(norm, p2l_dir)) * l.intensity;
 }
 
-float computeSpecular(vec3 p, vec3 norm, Light l, Material mat) { // computes specular lighting (Phong model)
+float computeSpecular(vec3 p, vec3 norm, Light l, Material mat) { // Phong model
     vec3 l2p_dir = normalize(p - l.position);
     vec3 reflection = reflect(l2p_dir, norm);
     vec3 p2cam_dir = normalize(uCamPos - p);
@@ -78,7 +80,7 @@ vec3 approx_norm(vec3 p) {
     return norm;
 }
 
-vec3 rotate(vec4 q, vec3 p) { // rotate a p with a unit q
+vec3 rotate(vec4 q, vec3 p) { // fast formula to rotate a point with a unit quaternion
     return p + 2 * q.w * cross(q.xyz, p) + 2 * cross(q.xyz, cross(q.xyz, p));
 }
 
