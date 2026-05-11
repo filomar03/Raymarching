@@ -161,7 +161,6 @@ pub fn main() !void {
         .resolution = gl.getUniformLocation(program, "uResolution"),
         .time = gl.getUniformLocation(program, "uTime"),
         .cam_fov = gl.getUniformLocation(program, "uFov"),
-        .cam_near = gl.getUniformLocation(program, "uNear"),
         .cam_pos = gl.getUniformLocation(program, "uCamPos"),
         .cam_rot = gl.getUniformLocation(program, "uCamRot"),
     } };
@@ -170,7 +169,6 @@ pub fn main() !void {
 
     gl.uniform2f(shader_interface.uniforms.resolution, @floatFromInt(fb_width), @floatFromInt(fb_height));
     gl.uniform1f(shader_interface.uniforms.cam_fov, state.camera.fov);
-    gl.uniform1f(shader_interface.uniforms.cam_near, state.camera.near);
     gl.uniform3fv(shader_interface.uniforms.cam_pos, 1, &state.camera.position.toArray());
 
     var last_time: f32 = @floatCast(glfw.getTime());
@@ -209,7 +207,6 @@ pub fn main() !void {
 fn getInput(window: *glfw.Window) void {
     moveCamera(window);
     rotateCamera(window);
-    adjustCamNear(window);
     detectQuit(window);
 }
 
@@ -284,14 +281,14 @@ fn rotateCamera(window: *glfw.Window) void {
     prev_my = my;
 }
 
-fn adjustCamNear(window: *glfw.Window) void {
-    const up_arrow: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.up) == glfw.Action.press));
-    const down_arrow: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.down) == glfw.Action.press));
+// fn adjustCamNear(window: *glfw.Window) void {
+//     const up_arrow: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.up) == glfw.Action.press));
+//     const down_arrow: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.down) == glfw.Action.press));
 
-    const shader = state.shader orelse return;
-    state.camera.near = std.math.clamp(state.camera.near + (up_arrow - down_arrow) * NEAR_SENS * state.dt, NEAR_MIN, NEAR_MAX);
-    gl.uniform1f(shader.uniforms.cam_near, state.camera.near);
-}
+//     const shader = state.shader orelse return;
+//     state.camera.near = std.math.clamp(state.camera.near + (up_arrow - down_arrow) * NEAR_SENS * state.dt, NEAR_MIN, NEAR_MAX);
+//     gl.uniform1f(shader.uniforms.cam_near, state.camera.near);
+// }
 
 fn detectQuit(window: *glfw.Window) void {
     glfw.setWindowShouldClose(window, glfw.getKey(window, glfw.Key.escape) == glfw.Action.press);

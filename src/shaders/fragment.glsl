@@ -15,7 +15,6 @@
 uniform vec2 uResolution;
 uniform float uTime;
 uniform float uFov;
-uniform float uNear;
 uniform vec3 uCamPos;
 uniform vec4 uCamRot;
 out vec4 FragColor;
@@ -85,14 +84,13 @@ vec3 rotate(vec4 q, vec3 p) { // rotate a p with a unit q
 
 void main()
 {
-    // TODO: some calculation can be done on CPU
     float aspect_ratio = uResolution.x / uResolution.y;
-    float thf = tan(radians(uFov * 0.5)); // projection plane half height / near distance ratio
+    float tan_half_fov = tan(radians(uFov * 0.5)); // projection plane half height over near distance factor
     vec2 uv = gl_FragCoord.xy / uResolution * 2.0 - 1; // normalize
-    uv *= vec2(thf * uNear); // scale (according to FOV & near)
-    uv.x *= aspect_ratio; // scale x (to respect ratio)
+    uv *= vec2(tan_half_fov); // scale to adjust for FOV (no need to mul by near since it's 1)
+    uv.x *= aspect_ratio; // scale x to maintain ratio
 
-    vec3 ray = normalize(rotate(uCamRot, vec3(uv, uNear)));
+    vec3 ray = normalize(rotate(uCamRot, vec3(uv, 1))); // near is set to 1, since changing it doesn't affect the rendering (for now)
 
     vec3 p = uCamPos;
     float travel = 0.0;

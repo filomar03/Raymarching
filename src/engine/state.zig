@@ -43,7 +43,6 @@ pub const ShaderInterface = struct {
         resolution: c_int,
         time: c_int,
         cam_fov: c_int,
-        cam_near: c_int,
         cam_pos: c_int,
         cam_rot: c_int,
     };
@@ -54,7 +53,7 @@ const CAM_DEF_NEAR = 1;
 
 pub const CameraObject = struct {
     fov: f32 = CAM_DEF_FOV,
-    near: f32 = CAM_DEF_NEAR,
+    // near: f32 = CAM_DEF_NEAR,
     position: glm.Vec3 = .{},
     rotation: glm.Quaternion = .{},
 };
