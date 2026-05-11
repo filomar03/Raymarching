@@ -1,7 +1,7 @@
 const std = @import("std");
 const glfw = @import("zglfw");
 const opengl = @import("zopengl");
-const engine = @import("engine/engine.zig");
+const engine = @import("engine/state.zig");
 const glm = @import("engine/glm.zig");
 const zm = @import("zmath");
 
@@ -10,8 +10,8 @@ const Console = engine.ConsoleInterface.Kind;
 const OPENGL_MAJOR = 3;
 const OPENGL_MINOR = 3;
 
-const WINDOW_WIDTH = 1200;
-const WINDOW_HEIGHT = 800;
+const WINDOW_WIDTH = 600;
+const WINDOW_HEIGHT = 600;
 
 const SRC_DIR = "src";
 const SHADER_DIR = "shaders";
@@ -70,12 +70,12 @@ pub fn main() !void {
     const VERT_VEC_SIZE = 3;
     const vertices = [_]gl.Float{
         -1.0, -1.0, -1.0,
-        -1.0,  1.0, -1.0,
-         1.0,  1.0, -1.0,
+        -1.0, 1.0,  -1.0,
+        1.0,  1.0,  -1.0,
 
         -1.0, -1.0, -1.0,
-         1.0,  1.0, -1.0,
-         1.0, -1.0, -1.0,
+        1.0,  1.0,  -1.0,
+        1.0,  -1.0, -1.0,
     };
 
     var vbo: gl.Uint = undefined;
@@ -96,30 +96,16 @@ pub fn main() !void {
     gl.enableVertexAttribArray(0);
 
     // Setup shaders
-    const shader_path = try std.fs.path.join(allocator, &[_][]const u8{SRC_DIR, SHADER_DIR});
+    const shader_path = try std.fs.path.join(allocator, &[_][]const u8{ SRC_DIR, SHADER_DIR });
     defer allocator.free(shader_path);
 
     var shader_dir = try std.fs.cwd().openDir(shader_path, .{});
     defer shader_dir.close();
 
-    const vert_src = try shader_dir.readFileAllocOptions(
-        allocator,
-        VERTEX_SHADER_FILE,
-        MAX_SHADER_SIZE,
-        null,
-        .of(u8),
-        0
-    );
+    const vert_src = try shader_dir.readFileAllocOptions(allocator, VERTEX_SHADER_FILE, MAX_SHADER_SIZE, null, .of(u8), 0);
     defer allocator.free(vert_src);
 
-    const frag_src = try shader_dir.readFileAllocOptions(
-        allocator,
-        FRAGMENT_SHADER_FILE,
-        MAX_SHADER_SIZE,
-        null,
-        .of(u8),
-        0
-    );
+    const frag_src = try shader_dir.readFileAllocOptions(allocator, FRAGMENT_SHADER_FILE, MAX_SHADER_SIZE, null, .of(u8), 0);
     defer allocator.free(frag_src);
 
     const vert_shad = gl.createShader(gl.VERTEX_SHADER);
@@ -171,17 +157,14 @@ pub fn main() !void {
 
     gl.useProgram(program);
 
-    const shader_interface: engine.ShaderInterface = .{
-        .program = &program,
-        .uniforms = .{
-            .resolution = gl.getUniformLocation(program, "uResolution"),
-            .time = gl.getUniformLocation(program, "uTime"),
-            .cam_fov = gl.getUniformLocation(program, "uFov"),
-            .cam_near = gl.getUniformLocation(program, "uNear"),
-            .cam_pos = gl.getUniformLocation(program, "uCamPos"),
-            .cam_rot = gl.getUniformLocation(program, "uCamRot"),
-        }
-    };
+    const shader_interface: engine.ShaderInterface = .{ .program = &program, .uniforms = .{
+        .resolution = gl.getUniformLocation(program, "uResolution"),
+        .time = gl.getUniformLocation(program, "uTime"),
+        .cam_fov = gl.getUniformLocation(program, "uFov"),
+        .cam_near = gl.getUniformLocation(program, "uNear"),
+        .cam_pos = gl.getUniformLocation(program, "uCamPos"),
+        .cam_rot = gl.getUniformLocation(program, "uCamRot"),
+    } };
 
     state.shader = shader_interface;
 
@@ -191,7 +174,6 @@ pub fn main() !void {
     gl.uniform3fv(shader_interface.uniforms.cam_pos, 1, &state.camera.position.toArray());
 
     var last_time: f32 = @floatCast(glfw.getTime());
-
 
     // Render loop
     var frame_counter: u32 = 0;
@@ -232,7 +214,7 @@ fn getInput(window: *glfw.Window) void {
 }
 
 const CAM_SENS = 0.002;
-const CAM_SPEED = glm.Vec3{.x = 7.5, .y = 3, .z = 7.5};
+const CAM_SPEED = glm.Vec3{ .x = 7.5, .y = 3, .z = 7.5 };
 
 const NEAR_SENS = 7;
 const NEAR_MIN = 0.1;
@@ -261,7 +243,7 @@ fn moveCamera(window: *glfw.Window) void {
     const left: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.a) == glfw.Action.press));
     const up: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.q) == glfw.Action.press));
     const down: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.e) == glfw.Action.press));
-    var input: glm.Vec3 = .{.x = right + -left, .y = up + -down, .z = forward + -backwards};
+    var input: glm.Vec3 = .{ .x = right + -left, .y = up + -down, .z = forward + -backwards };
     input = input.normalize();
 
     const cam_forward = state.camera.rotation.rotateVec(input);
@@ -315,14 +297,13 @@ fn detectQuit(window: *glfw.Window) void {
     glfw.setWindowShouldClose(window, glfw.getKey(window, glfw.Key.escape) == glfw.Action.press);
 }
 
-
 fn adjustCamFov(scroll: f32) void {
     const shader = state.shader orelse return;
     state.camera.fov = std.math.clamp(state.camera.fov + -scroll * FOV_SENS, FOV_MIN, FOV_MAX);
     gl.uniform1f(shader.uniforms.cam_fov, state.camera.fov);
 }
 
-fn scrollCallback(window: *glfw.Window, x_offset: f64 , y_offset: f64) callconv(.c) void {
+fn scrollCallback(window: *glfw.Window, x_offset: f64, y_offset: f64) callconv(.c) void {
     _ = window;
     _ = x_offset;
 

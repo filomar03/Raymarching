@@ -49,17 +49,15 @@ pub fn build(b: *std.Build) void {
     exe.root_module.addImport("zopengl", zopengl.module("root"));
 
     // zmath dependency
-    const zmath = b.dependency("zmath", .{});
-    exe.root_module.addImport("zmath", zmath.module("root"));
+    // const zmath = b.dependency("zmath", .{});
+    // exe.root_module.addImport("zmath", zmath.module("root"));
 
     // test step (install dep)
-    const test_exe = b.addTest(.{
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/test.zig"),
-            .target = target,
-            .optimize = optimize,
-        })
-    });
+    const test_exe = b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("src/test.zig"),
+        .target = target,
+        .optimize = optimize,
+    }) });
 
     const run_test = b.addRunArtifact(test_exe);
 
