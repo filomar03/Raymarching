@@ -24,6 +24,8 @@ const INFO_LOG_MAX = 512;
 const VSYNC_ON = 1;
 const VSYNC_OFF = 0;
 
+const PERF_UPDATE_INTERVAL: f32 = 1;
+
 const gl = opengl.bindings;
 
 var state: engine.State = .{};
@@ -172,32 +174,27 @@ pub fn main() !void {
     gl.uniform3fv(shader_interface.uniforms.cam_pos, 1, &state.camera.position.toArray());
 
     var last_time: f32 = @floatCast(glfw.getTime());
+    var last_perf_update: f32 = 0;
 
     // Render loop
-    var frame_counter: u32 = 0;
     while (!window.shouldClose()) {
+        const now = @as(f32, @floatCast(glfw.getTime()));
+        state.dt = now - last_time;
+        last_time = now;
+
         glfw.pollEvents();
-
-        // no need to clear since every pixel in the framebuffer is always overwritten
-
         getInput(window);
 
-        gl.uniform1f(shader_interface.uniforms.time, @floatCast(glfw.getTime()));
-
+        gl.uniform1f(shader_interface.uniforms.time, now);
         gl.drawArrays(gl.TRIANGLES, 0, vertices.len / VERT_VEC_SIZE);
-
         window.swapBuffers();
 
-        if (frame_counter % 60 == 0) {
+        state.debug.performance.addFrametime(state.dt);
+        if (now - last_perf_update > PERF_UPDATE_INTERVAL) {
+            last_perf_update = now;
             try console.print("\x1b[2J\x1b[HFPS: {:.0}\n", .{1 / state.debug.performance.getAvgFrameTime()});
             try console.flush();
         }
-
-        frame_counter += 1;
-
-        state.dt = @as(f32, @floatCast(glfw.getTime())) - last_time;
-        state.debug.performance.addFrametime(state.dt);
-        last_time = @floatCast(glfw.getTime());
     }
 }
 
@@ -279,6 +276,7 @@ fn rotateCamera(window: *glfw.Window) void {
     prev_my = my;
 }
 
+// UNUSED (for now)
 // fn adjustCamNear(window: *glfw.Window) void {
 //     const up_arrow: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.up) == glfw.Action.press));
 //     const down_arrow: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.down) == glfw.Action.press));

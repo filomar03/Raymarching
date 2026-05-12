@@ -58,25 +58,27 @@ pub const CameraObject = struct {
     rotation: glm.Quaternion = .{},
 };
 
-const FRAMETIME_RBUF_DIM = 60;
+const FRAMETIME_RBUF_DIM = 64; // power of 2 to enable modulo optimization
 
 pub const DebugInfo = struct {
     performance: PerfInfo = .{},
 };
 
 pub const PerfInfo = struct {
-    frametime_rbuf: @Vector(FRAMETIME_RBUF_DIM, f32) = @splat(0),
+    frametime_rbuf: [FRAMETIME_RBUF_DIM]f32 = [_]f32{0} ** FRAMETIME_RBUF_DIM,
     rbuf_idx: u32 = 0,
+    frametimes_sum: f32 = 0,
 
     const Self = @This();
 
     pub fn addFrametime(self: *Self, ft: f32) void {
+        self.frametimes_sum -= self.frametime_rbuf[self.rbuf_idx];
+        self.frametimes_sum += ft;
         self.frametime_rbuf[self.rbuf_idx] = ft;
         self.rbuf_idx = (self.rbuf_idx + 1) % FRAMETIME_RBUF_DIM;
     }
 
     pub fn getAvgFrameTime(self: Self) f32 {
-        const acc: f32 = @reduce(std.builtin.ReduceOp.Add, self.frametime_rbuf);
-        return acc / FRAMETIME_RBUF_DIM;
+        return self.frametimes_sum / FRAMETIME_RBUF_DIM;
     }
 };
