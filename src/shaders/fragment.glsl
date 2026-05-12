@@ -11,7 +11,7 @@ uniform vec4 uCamRot;
 out vec4 FragColor;
 
 // Rendering params
-#define HIT_DISTANCE 0.01
+#define HIT_DISTANCE 0.0001
 #define MAX_STEP 300
 #define MAX_TRAVEL 5000.0
 #define EPSILON 0.0001
@@ -53,21 +53,74 @@ Material mats[] = Material[](
     Material(vec3(0.1, 0.1, 0.1), 64),
     Material(vec3(0.5, 0.2, 0.6), 512),
     Material(vec3(1.0, 0.7, 0.3), 64),
-    Material(vec3(1.0, 0.7, 0.3), 4096)
+    Material(vec3(1.0, 0.7, 0.3), 4096),
+    Material(vec3(1.0, 0.7, 0.3), 0)
 );
 
-float sdSphere(vec3 center, float radius) { // TODO: use center and p
+// SDFs
+float sdSphere(vec3 center, float radius) {
     return length(center) - radius;
 }
 
-float map(vec3 p) {
-    vec3 sp1_origin = vec3(0, 0, 10);
-    vec3 sp2_origin = vec3(10, 0, 20);
+// - Box
+// - Cone
+// - Cylinder
 
-    float sp1 = sdSphere(sp1_origin - p, 3.0 + abs(sin(uTime * 1.2) * 2.0));
-    float sp2 = sdSphere(sp2_origin - p, 8);
+// Shape operations
+// - Revolution
+// - Extrusion
+// - Round
 
-    return min(sp1, sp2);
+// Interaction operations (FIX: normals get fucked with ops except union)
+HitInfo opUnion(HitInfo a, HitInfo b) {
+    return (a.distance < b.distance) ? a : b;
+}
+
+HitInfo opIntersect(HitInfo a, HitInfo b) {
+    return (a.distance < b.distance) ? b : a;
+}
+
+HitInfo opSubtract(HitInfo a, HitInfo b) {
+    HitInfo res = a;
+    res.distance = max(a.distance, -b.distance);
+    return res;
+}
+
+HitInfo opSmoothUnion(HitInfo a, HitInfo b) {
+    return a; // NOT IMPLEMENTED!!
+}
+
+HitInfo opSmoothIntersect(HitInfo a, HitInfo b) {
+    return a; // NOT IMPLEMENTED!!
+}
+
+HitInfo opSmoothSubtract(HitInfo a, HitInfo b) {
+    return a; // NOT IMPLEMENTED!!
+}
+
+// Either map code gets created by cpu every time the scene changes
+// or
+// The objects are in an UBO and store information about their type
+HitInfo map(vec3 p) {
+    vec3 sp1_origin = vec3(0, 0, 10) - p;
+    vec3 sp2_origin = vec3(5, 0, 12) - p;
+
+    HitInfo sp1 = HitInfo(sdSphere(sp1_origin, 3.0 + abs(sin(uTime * 1.2) * 2.0)), 5);
+    HitInfo sp2 = HitInfo(sdSphere(sp2_origin, 8), 5);
+
+    return opUnion(sp1, sp2);
+}
+
+vec3 approx_norm(vec3 p) {
+    vec2 h = vec2(EPSILON, 0.0);
+
+    // central difference gradient
+    float dx = map(p + h.xyy).distance - map(p - h.xyy).distance;
+    float dy = map(p + h.yxy).distance - map(p - h.yxy).distance;
+    float dz = map(p + h.yyx).distance - map(p - h.yyx).distance;
+
+    vec3 norm = normalize(vec3(dx, dy, dz));
+    return norm;
 }
 
 float computeDiffuse(vec3 p, vec3 norm, Light l) { // Lambert model
@@ -80,18 +133,6 @@ float computeSpecular(vec3 p, vec3 norm, Light l, Material mat) { // Phong model
     vec3 reflection = reflect(l2p_dir, norm);
     vec3 p2cam_dir = normalize(uCamPos - p);
     return pow(max(0, dot(reflection, p2cam_dir)), mat.shininess);
-}
-
-vec3 approx_norm(vec3 p) {
-    vec2 h = vec2(EPSILON, 0.0);
-
-    // central difference gradient
-    float dx = map(p + h.xyy) - map(p - h.xyy);
-    float dy = map(p + h.yxy) - map(p - h.yxy);
-    float dz = map(p + h.yyx) - map(p - h.yyx);
-
-    vec3 norm = normalize(vec3(dx, dy, dz));
-    return norm;
 }
 
 vec3 rotate(vec4 q, vec3 p) { // fast formula to rotate a point with a unit quaternion
@@ -113,15 +154,15 @@ void main()
     int step = 0;
 
     while (true) {
-        float d = map(p);
+        HitInfo hit = map(p);
 
-        travel += d;
+        travel += hit.distance;
 
-        p += ray * d;
+        p += ray * hit.distance;
 
-        if (d <= HIT_DISTANCE) { // this branch splits the frontwave!!
+        if (hit.distance <= HIT_DISTANCE) {
             vec3 norm = approx_norm(p);
-            Material mat = mats[4];
+            Material mat = mats[hit.mat_index];
 
             float ambient = AMBIENT_I;
             float diffuse = 0.0;
@@ -135,7 +176,9 @@ void main()
                 }
 
                 diffuse += computeDiffuse(p, norm, l);
-                specular += computeSpecular(p, norm, l, mat);
+                if (mat.shininess > 0) {
+                    specular += computeSpecular(p, norm, l, mat);
+                }
             }
 
             FragColor = vec4((ambient + diffuse + specular) * mat.color, 1);
