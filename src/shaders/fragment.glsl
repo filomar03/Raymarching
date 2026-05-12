@@ -28,10 +28,33 @@ struct Material {
     float shininess;
 };
 
+struct HitInfo {
+    float distance;
+    int mat_index;
+};
+
 // Colors
 #define HIT vec3(1.0, 0.95, 0.85)
 #define FAR vec3(0.0, 0.0, 0.0)
 #define OUT_OF_STEP vec3(0.3, 0, 0)
+
+// Lights
+#define DIR_LIGHT -99999999
+#define AMBIENT_I 0.15
+Light lights[] = Light[](
+    Light(vec3(0.0, 3.0, 0.0), true, 0.7),
+    Light(vec3(3.0, 7.0, 9.0), false, 0.2),
+    Light(normalize(vec3(-1.0, -3.0, 1.0)) * DIR_LIGHT, false, 0.2)
+);
+
+// Materials
+Material mats[] = Material[](
+    Material(vec3(0.1, 0.1, 0.1), 4096),
+    Material(vec3(0.1, 0.1, 0.1), 64),
+    Material(vec3(0.5, 0.2, 0.6), 512),
+    Material(vec3(1.0, 0.7, 0.3), 64),
+    Material(vec3(1.0, 0.7, 0.3), 4096)
+);
 
 float sdSphere(vec3 center, float radius) { // TODO: use center and p
     return length(center) - radius;
@@ -46,15 +69,6 @@ float map(vec3 p) {
 
     return min(sp1, sp2);
 }
-
-#define DIR_LIGHT 99999999
-#define AMBIENT_I 0.15
-#define LIGHTS_NUM 3
-Light lights[LIGHTS_NUM] = Light[](
-    Light(vec3(0.0, 3.0, 0.0), true, 0.7),
-    Light(vec3(3.0, 7.0, 9.0), false, 0.2),
-    Light(normalize(vec3(1.0, 3.0, -1.0)) * DIR_LIGHT, false, 0.2)
-);
 
 float computeDiffuse(vec3 p, vec3 norm, Light l) { // Lambert model
     vec3 p2l_dir = normalize(l.position - p);
@@ -107,13 +121,13 @@ void main()
 
         if (d <= HIT_DISTANCE) { // this branch splits the frontwave!!
             vec3 norm = approx_norm(p);
-            Material mat = Material(HIT, 512);
+            Material mat = mats[4];
 
             float ambient = AMBIENT_I;
             float diffuse = 0.0;
             float specular = 0.0;
 
-            for (int i = 0; i < LIGHTS_NUM; i++) {
+            for (int i = 0; i < lights.length(); i++) {
                 Light l = lights[i];
 
                 if (l.follow_cam) {
