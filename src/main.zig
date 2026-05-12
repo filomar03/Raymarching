@@ -190,7 +190,7 @@ pub fn main() !void {
         window.swapBuffers();
 
         state.debug.performance.addFrametime(state.dt);
-        if (now - last_perf_update > PERF_UPDATE_INTERVAL) {
+        if (now - last_perf_update >= PERF_UPDATE_INTERVAL) {
             last_perf_update = now;
             try console.print("\x1b[2J\x1b[HFPS: {:.0}\n", .{1 / state.debug.performance.getAvgFrameTime()});
             try console.flush();
