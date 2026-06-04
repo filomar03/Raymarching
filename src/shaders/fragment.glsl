@@ -39,7 +39,7 @@ struct HitInfo {
 #define OUT_OF_STEP vec3(0.1, 1.0, 0)
 
 // Lights
-// Directional lights dont work this way, but it was a quick
+// Directional lights quick implementation
 #define DIR_LIGHT -99999999
 #define AMBIENT_I 0.15
 Light lights[] = Light[](
@@ -63,14 +63,40 @@ float sdSphere(vec3 center, float radius) {
     return length(center) - radius;
 }
 
-// - Box
-// - Cone
-// - Cylinder
+float sdBox(vec3 p, vec3 b) {
+    vec3 q = abs(p) - q;
+    return lenght(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0);
+}
+
+float sdCone(vec3 p, vec2 c, float h) {
+    vec2 q = h * vec2(c.x / c.y, -1.0);
+    vec2 w = vec2(length(p.xz), p.y);
+    vec2 a = w - q * clamp(dot(w, q) / dot(q, q), 0.0, 1.0);
+    vec2 b = w - q * vec2(clamp(w.x / q.x, 0.0, 1.0), 1.0);
+    float k = sign(q.y);
+    float d = min(dot(a, a), dot(b, b));
+    float s = max(k * (w.x * q.y - w.y * q.x), k * (w.y - q.y));
+    return sqrt(d) * sign(s);
+}
+
+float sdCylinder(vec3 p, vec2 h) {
+    vec2 d = abs(vec2(length(p.xz), p.y)) - h;
+    return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
+}
 
 // Shape operations
-// - Revolution
-// - Extrusion
-// - Round
+vec2 opRevolution(vec3 p, float w) {
+    return vec2(length(p.xz) - w, p.y);
+}
+
+float opExtrusion(vec3 p, float sdf2d, float h) {
+    vec2 w = vec2(sdf2d, abs(p.z) - h);
+    return min(max(w.x, w.y), 0.0) + length(max(w, 0.0));
+}
+
+float opRound(float sdf, float r) {
+    return sdf - r;
+}
 
 // Interaction operations
 HitInfo opUnion(HitInfo a, HitInfo b) {
@@ -83,25 +109,35 @@ HitInfo opIntersect(HitInfo a, HitInfo b) {
 
 HitInfo opSubtract(HitInfo a, HitInfo b) {
     HitInfo res = a;
-    res.distance = max(a.distance, -b.distance);
+    float d = max(a.distance, -b.distance);
+    res.distance = d;
     return res;
 }
 
-HitInfo opSmoothUnion(HitInfo a, HitInfo b) {
-    return a; // NOT IMPLEMENTED!!
+HitInfo opSmoothUnion(HitInfo a, HitInfo b, float k) {
+    HitInfo res = (a.distance < b.distance) ? a : b;
+    float h = clamp(0.5 + 0.5 * (b.distance - a.distance) / k, 0.0, 1.0);
+    float d = mix(b.distance, a.distance, h) - k * h * (1.0 - h);
+    res.distance = d;
+    return res;
 }
 
-HitInfo opSmoothIntersect(HitInfo a, HitInfo b) {
-    return a; // NOT IMPLEMENTED!!
+HitInfo opSmoothIntersect(HitInfo a, HitInfo b, float k) {
+    HitInfo res = (a.distance > b.distance) ? a : b;
+    float h = clamp(0.5 - 0.5 * (b.distance - a.distance) / k, 0.0, 1.0);
+    float d = mix(b.distance, a.distance, h) + k * h * (1.0 - h);
+    res.distance = d;
+    return res;
 }
 
-HitInfo opSmoothSubtract(HitInfo a, HitInfo b) {
-    return a; // NOT IMPLEMENTED!!
+HitInfo opSmoothSubtract(HitInfo a, HitInfo b, float k) {
+    HitInfo res = a;
+    float h = clamp(0.5 - 0.5 * (a.distance + b.distance) / k, 0.0, 1.0);
+    float d = mix(a.distance, -b.distance, h) + k * h * (1.0 - h);
+    res.distance = d;
+    return res;
 }
 
-// Either map code gets created by cpu every time the scene changes
-// or
-// The objects are in an UBO and store information about their type
 HitInfo map(vec3 p) {
     vec3 sp1_origin = vec3(0, 0, 10) - p;
     vec3 sp2_origin = vec3(5, 0, 12) - p;
