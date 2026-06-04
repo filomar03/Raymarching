@@ -287,7 +287,9 @@ fn rotateCamera(window: *glfw.Window) void {
 // }
 
 fn detectQuit(window: *glfw.Window) void {
-    glfw.setWindowShouldClose(window, glfw.getKey(window, glfw.Key.escape) == glfw.Action.press);
+    if (glfw.getKey(window, glfw.Key.escape) == glfw.Action.press) {
+        glfw.setWindowShouldClose(window, true);
+    }
 }
 
 fn adjustCamFov(scroll: f32) void {
