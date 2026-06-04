@@ -1,6 +1,4 @@
 .zig-cache
 zig-out
 libs
-Roadmap.pdf
-TODO.txt
-notes
+.zed

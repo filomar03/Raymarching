@@ -12,7 +12,7 @@ out vec4 FragColor;
 
 // Rendering params
 #define HIT_DISTANCE 0.0001
-#define MAX_STEP 300
+#define MAX_STEP 500
 #define MAX_TRAVEL 5000.0
 #define EPSILON 0.0001
 
@@ -36,9 +36,10 @@ struct HitInfo {
 // Colors
 #define HIT vec3(1.0, 0.95, 0.85)
 #define FAR vec3(0.0, 0.0, 0.0)
-#define OUT_OF_STEP vec3(0.3, 0, 0)
+#define OUT_OF_STEP vec3(0.1, 1.0, 0)
 
 // Lights
+// Directional lights dont work this way, but it was a quick
 #define DIR_LIGHT -99999999
 #define AMBIENT_I 0.15
 Light lights[] = Light[](
@@ -54,7 +55,7 @@ Material mats[] = Material[](
     Material(vec3(0.5, 0.2, 0.6), 512),
     Material(vec3(1.0, 0.7, 0.3), 64),
     Material(vec3(1.0, 0.7, 0.3), 4096),
-    Material(vec3(1.0, 0.7, 0.3), 0)
+    Material(vec3(1.0, 0.7, 0.3), 4096)
 );
 
 // SDFs
@@ -71,7 +72,7 @@ float sdSphere(vec3 center, float radius) {
 // - Extrusion
 // - Round
 
-// Interaction operations (FIX: normals get fucked with ops except union)
+// Interaction operations
 HitInfo opUnion(HitInfo a, HitInfo b) {
     return (a.distance < b.distance) ? a : b;
 }
@@ -105,10 +106,10 @@ HitInfo map(vec3 p) {
     vec3 sp1_origin = vec3(0, 0, 10) - p;
     vec3 sp2_origin = vec3(5, 0, 12) - p;
 
-    HitInfo sp1 = HitInfo(sdSphere(sp1_origin, 3.0 + abs(sin(uTime * 1.2) * 2.0)), 5);
+    HitInfo sp1 = HitInfo(sdSphere(sp1_origin, 3.0 + abs(sin(uTime * 0.2) * 2.0)), 5);
     HitInfo sp2 = HitInfo(sdSphere(sp2_origin, 8), 5);
 
-    return opUnion(sp1, sp2);
+    return opSubtract(sp2, sp1);
 }
 
 vec3 approx_norm(vec3 p) {

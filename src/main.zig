@@ -10,8 +10,8 @@ const Console = engine.ConsoleInterface.Kind;
 const OPENGL_MAJOR = 3;
 const OPENGL_MINOR = 3;
 
-const WINDOW_WIDTH = 1000;
-const WINDOW_HEIGHT = 800;
+const WINDOW_WIDTH = 800;
+const WINDOW_HEIGHT = 600;
 
 const SRC_DIR = "src";
 const SHADER_DIR = "shaders";

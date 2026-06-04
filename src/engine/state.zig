@@ -48,7 +48,7 @@ pub const ShaderInterface = struct {
     };
 };
 
-const CAM_DEF_FOV = 70;
+const CAM_DEF_FOV = 60;
 
 pub const CameraObject = struct {
     fov: f32 = CAM_DEF_FOV,
