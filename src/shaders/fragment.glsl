@@ -244,10 +244,6 @@ void main()
     uv *= vec2(tan_half_fov); // scale to adjust for FOV (no need to mul by near since it's 1)
     uv.x *= aspect_ratio; // scale x to maintain ratio
 
-    vec3 ray = normalize(rotate(uCamRot, vec3(uv, 1))); // near is set to 1, since changing it doesn't affect the rendering (for now)
-
-    vec3 ray = normalize(rotate(uCamRot, vec3(uv, 1))); // near is set to 1, since changing it doesn't affect the rendering (for now)
-
     vec3 p = uCamPos;
     vec3 ray = normalize(rotate(uCamRot, vec3(uv, 1))); // near is set to 1, since changing it doesn't affect the rendering (for now)
     vec3 observer_position = uCamPos;
