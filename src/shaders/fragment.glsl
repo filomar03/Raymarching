@@ -12,10 +12,10 @@ out vec4 FragColor;
 
 // Rendering params
 #define HIT_DISTANCE 0.001
-#define MAX_STEP 500
+#define MAX_STEP 1000
 #define MAX_TRAVEL 5000.0
-#define EPSILON 0.001
-#define MAX_BOUNCE 3
+#define EPSILON 0.0001
+#define MAX_BOUNCE 5
 #define NUDGE 0.01
 
 #define HIT 0
@@ -47,7 +47,6 @@ struct HitInfo {
     int mat_index;
 };
 
-
 // Scene constants
 #define COLOR_SKY_BOX vec3(0.75, 0.87, 0.89)
 #define COLOR_OUT_OF_STEP vec3(0, 1, 0.24)
@@ -61,15 +60,15 @@ Light lights[] = Light[](
 
 Material mats[] = Material[](
     Material(vec3(0.25, 0.25, 0.28), 16, 0.0),  // engine block
-    Material(vec3(0.80, 0.82, 0.85), 128.0, 0.3), // piston
+    Material(vec3(0.80, 0.82, 0.85), 128.0, 1), // piston
     Material(vec3(0.75, 0.55, 0.25), 128.0, 0.1), // conrod
     Material(vec3(0.70, 0.70, 0.75), 512.0, 0.05), // crankshaft
     Material(vec3(0.65, 0.65, 0.70), 512.0, 0.05), // camshaft
     Material(vec3(0.85, 0.85, 0.90), 256.0, 0.0), // valves
-    Material(vec3(0.35, 0.35, 0.40), 64.0, 0.0)   // timing gear
+    Material(vec3(0.35, 0.35, 0.40), 64.0, 0.5)   // timing gear
 );
 
-// SDFs (formule sdf prese da: https://iquilezles.org/articles/distfunctions/)
+// SDFs (formule prese da: https://iquilezles.org/articles/distfunctions/)
 float sdSphere(vec3 center, float radius) {
     return length(center) - radius;
 }
@@ -259,6 +258,11 @@ void main()
             vec3 norm = approx_norm(p);
             Material mat = mats[hit.mat_index];
 
+            float absorbtion = 1.0 - mat.reflectivity;
+            if (bounce == MAX_BOUNCE - 1) {
+                absorbtion = 1.0;
+            }
+
             if (mat.reflectivity < 1.0) {
                 float ambient = AMBIENT_I;
                 float diffuse = 0.0;
@@ -278,27 +282,24 @@ void main()
                 }
 
                 vec3 color = (ambient + diffuse) * mat.color + specular;
-                final_color += color * (1 - mat.reflectivity) * ray_energy; // se ultimo bounce considero opaco?
+                final_color += color * absorbtion * ray_energy;
             }
 
-            if (mat.reflectivity > 0) {
+            if (mat.reflectivity > 0.0) {
                 ray = normalize(reflect(ray, norm));
                 observer_position = p;
                 p += ray * NUDGE;
 
                 ray_energy *= mat.reflectivity;
-                continue;
             } else {
                 break;
             }
         }
-
-        if (hit.reason == FAR) {
+        else if (hit.reason == FAR) {
             final_color += COLOR_SKY_BOX * ray_energy;
             break;
         }
-
-        if (hit.reason == OUT_OF_STEPS) {
+        else if (hit.reason == OUT_OF_STEPS) {
             final_color += COLOR_OUT_OF_STEP * ray_energy;
             break;
         }
