@@ -11,10 +11,16 @@ uniform vec4 uCamRot;
 out vec4 FragColor;
 
 // Rendering params
-#define HIT_DISTANCE 0.0001
+#define HIT_DISTANCE 0.001
 #define MAX_STEP 500
 #define MAX_TRAVEL 5000.0
-#define EPSILON 0.0001
+#define EPSILON 0.001
+#define MAX_BOUNCE 3
+#define NUDGE 0.01
+
+#define HIT 0
+#define FAR 1
+#define OUT_OF_STEPS 2
 
 // Structs
 struct Light {
@@ -30,18 +36,22 @@ struct Material {
     float reflectivity;
 };
 
-struct HitInfo {
+struct SceneInfo {
     float distance;
     int mat_index;
 };
 
-// Colors
-#define HIT vec3(1.0, 0.95, 0.85)
-#define FAR vec3(0.0, 0.0, 0.0)
-#define OUT_OF_STEP vec3(0.1, 1.0, 0)
+struct HitInfo {
+    int reason;
+    float travel;
+    int mat_index;
+};
 
-// Lights
-// Directional lights quick implementation
+
+// Scene constants
+#define COLOR_SKY_BOX vec3(0.75, 0.87, 0.89)
+#define COLOR_OUT_OF_STEP vec3(0, 1, 0.24)
+
 #define DIR_LIGHT 99999999
 #define AMBIENT_I 0.15
 Light lights[] = Light[](
@@ -49,15 +59,14 @@ Light lights[] = Light[](
     Light(normalize(vec3(1.0, 3.0, -1.0)) * DIR_LIGHT, false, vec3(1), 0.2)
 );
 
-// Materials
 Material mats[] = Material[](
-    Material(vec3(0.25, 0.25, 0.28), 16.0, 0.2),  // engine block
-    Material(vec3(0.80, 0.82, 0.85), 128.0, 0.7), // piston
-    Material(vec3(0.75, 0.55, 0.25), 128.0, 0.6), // conrod
-    Material(vec3(0.70, 0.70, 0.75), 512.0, 0.7), // crankshaft
-    Material(vec3(0.65, 0.65, 0.70), 512.0, 0.7), // camshaft
-    Material(vec3(0.85, 0.85, 0.90), 256.0, 0.3), // valves
-    Material(vec3(0.35, 0.35, 0.40), 64.0, 0.5)   // timing gear
+    Material(vec3(0.25, 0.25, 0.28), 16, 0.0),  // engine block
+    Material(vec3(0.80, 0.82, 0.85), 128.0, 0.3), // piston
+    Material(vec3(0.75, 0.55, 0.25), 128.0, 0.1), // conrod
+    Material(vec3(0.70, 0.70, 0.75), 512.0, 0.05), // crankshaft
+    Material(vec3(0.65, 0.65, 0.70), 512.0, 0.05), // camshaft
+    Material(vec3(0.85, 0.85, 0.90), 256.0, 0.0), // valves
+    Material(vec3(0.35, 0.35, 0.40), 64.0, 0.0)   // timing gear
 );
 
 // SDFs (formule sdf prese da: https://iquilezles.org/articles/distfunctions/)
@@ -102,7 +111,13 @@ float sdCapsule(vec3 p, vec3 a, vec3 b, float r) {
     return length(pa - ba * h) - r;
 }
 
-// questa sdf specifica, non essendo comune l'ho creata con l'aiuto dell'intelligenza artificiale
+float sdLink( vec3 p, float le, float r1, float r2 )
+{
+  vec3 q = vec3( p.x, max(abs(p.y)-le,0.0), p.z );
+  return length(vec2(length(q.xy)-r1,q.z)) - r2;
+}
+
+// questa sdf, non essendo comune l'ho creata con l'aiuto dell'intelligenza artificiale
 float sdGear(vec3 p, float r, float w, float teeth, float angle) {
     float c = cos(angle), s = sin(angle);
     mat2 rot = mat2(c, -s, s, c);
@@ -157,15 +172,14 @@ float opRound(float sdf, float r) {
     return sdf - r;
 }
 
-#define MOTORE
+// float opRepetition( in vec3 p, in vec3 s, in sdf3d primitive )
+// {
+//     vec3 q = p - s*round(p/s);
+//     return primitive( q );
+// }
 
-HitInfo map(vec3 p) {
-#ifdef MOTORE
-    // scena motore
-#endif
-#ifndef MOTORE
-    // scena con forme smooth union in movimento e dei riflessi
-#endif
+SceneInfo map(vec3 p) {
+    
     return scene;
 }
 
@@ -197,6 +211,31 @@ vec3 rotate(vec4 q, vec3 p) { // fast formula to rotate a point with a unit quat
     return p + 2 * q.w * cross(q.xyz, p) + 2 * cross(q.xyz, cross(q.xyz, p));
 }
 
+HitInfo rayMarch(vec3 starting_point, vec3 ray, float start_travel, int start_step) {
+    vec3 p = starting_point;
+    float travel = start_travel;
+    int step = start_step;
+
+    while (step < MAX_STEP) {
+        SceneInfo scene = map(p);
+
+        travel += scene.distance;
+        p += ray * scene.distance;
+
+        if (scene.distance <= HIT_DISTANCE) {
+            return HitInfo(HIT, travel, scene.mat_index);
+        }
+
+        if (travel > MAX_TRAVEL) {
+            return HitInfo(FAR, travel, scene.mat_index);
+        }
+
+        step += 1;
+    }
+
+    return HitInfo(OUT_OF_STEPS, travel, -1);
+}
+
 void main()
 {
     float aspect_ratio = uResolution.x / uResolution.y;
@@ -211,54 +250,61 @@ void main()
     float travel = 0.0;
     int step = 0;
 
-    while (true) {
-        HitInfo hit = map(p);
+    float ray_energy = 1.0;
+    vec3 final_color;
 
-        travel += hit.distance;
+    for (int bounce = 0; bounce < MAX_BOUNCE; bounce++) {
+        HitInfo hit = rayMarch(p, ray, 0, 0);
+        p += ray * hit.travel;
 
-        p += ray * hit.distance;
-
-        if (hit.distance <= HIT_DISTANCE) {
+        if (hit.reason == HIT) {
             vec3 norm = approx_norm(p);
             Material mat = mats[hit.mat_index];
 
-            float ambient = AMBIENT_I;
-            float diffuse = 0.0;
-            vec3 specular = vec3(0);
+            if (mat.reflectivity < 1.0) {
+                float ambient = AMBIENT_I;
+                float diffuse = 0.0;
+                vec3 specular = vec3(0);
 
-            for (int i = 0; i < lights.length(); i++) {
-                Light l = lights[i];
+                for (int i = 0; i < lights.length(); i++) {
+                    Light l = lights[i];
 
-                if (l.follow_cam) {
-                    l.position += uCamPos;
+                    if (l.follow_cam) {
+                        l.position += uCamPos;
+                    }
+
+                    diffuse += computeDiffuse(p, norm, l);
+                    if (mat.shininess > 0) {
+                        specular += computeSpecular(p, norm, l, mat);
+                    }
                 }
 
-                diffuse += computeDiffuse(p, norm, l);
-                if (mat.shininess > 0) {
-                    specular += computeSpecular(p, norm, l, mat);
-                }
+                vec3 color = (ambient + diffuse) * mat.color + specular;
+                final_color += color * (1 - mat.reflectivity) * ray_energy; // se ultimo bounce considero opaco?
             }
 
-            //rifare cosi:
+            if (mat.reflectivity > 0) {
+                ray = normalize(reflect(ray, norm));
+                observer_position = p;
+                p += ray * NUDGE;
 
-            // loop max bounce, raggio perde energia ogni rimbalzo
-            //      calcolo parte non riflessa
-            //      mi fermo se non rifletto piu
-
-            FragColor = vec4((ambient + diffuse) * mat.color + specular, 1);
-            return;
+                ray_energy *= mat.reflectivity;
+                continue;
+            } else {
+                break;
+            }
         }
 
-        if (step > MAX_STEP) {
-            FragColor = vec4(OUT_OF_STEP, 1);
-            return;
+        if (hit.reason == FAR) {
+            final_color += COLOR_SKY_BOX * ray_energy;
+            break;
         }
 
-        if (travel > MAX_TRAVEL) {
-            FragColor = vec4(FAR, 1);
-            return;
+        if (hit.reason == OUT_OF_STEPS) {
+            final_color += COLOR_OUT_OF_STEP * ray_energy;
+            break;
         }
-
-        step += 1;
     }
+
+    FragColor = vec4(final_color, 1);
 }
