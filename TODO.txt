@@ -4,4 +4,3 @@ blending colori
 scene
 
 sistemare:
-movimento e/q (dovrebbe andare su asse non influenzato dalla rotazione della camera)
