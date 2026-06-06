@@ -1,11 +1,7 @@
 implementare:
-operazioni map
-solidi
-interazioni tra solidi
-materiali speculari
-scena da renderizzare come demo (possibilmente un motore, scena implementata hardcoded oppure con un map generica che funziona con una lista di solidi che verra caricata da cpu)
+rimbalzi su mat spec
+blending colori
+scene
 
 sistemare:
-normali con operazioni diverse da union (potrebbero essere sbagliate o essere solo una questione di luce)
-luci direzionali (cosi non sono proprio corrette per quanto abbiano cmq senso)
 movimento e/q (dovrebbe andare su asse non influenzato dalla rotazione della camera)

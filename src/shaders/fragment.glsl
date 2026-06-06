@@ -20,12 +20,14 @@ out vec4 FragColor;
 struct Light {
     vec3 position;
     bool follow_cam;
+    vec3 color;
     float intensity;
 };
 
 struct Material {
     vec3 color;
     float shininess;
+    float reflectivity;
 };
 
 struct HitInfo {
@@ -40,32 +42,37 @@ struct HitInfo {
 
 // Lights
 // Directional lights quick implementation
-#define DIR_LIGHT -99999999
+#define DIR_LIGHT 99999999
 #define AMBIENT_I 0.15
 Light lights[] = Light[](
-    Light(vec3(0.0, 3.0, 0.0), true, 0.7),
-    Light(vec3(3.0, 7.0, 9.0), false, 0.2),
-    Light(normalize(vec3(-1.0, -3.0, 1.0)) * DIR_LIGHT, false, 0.2)
+    Light(vec3(0.0, 0.0, 0.0), true, vec3(1), 0.7),
+    Light(normalize(vec3(1.0, 3.0, -1.0)) * DIR_LIGHT, false, vec3(1), 0.2)
 );
 
 // Materials
 Material mats[] = Material[](
-    Material(vec3(0.1, 0.1, 0.1), 4096),
-    Material(vec3(0.1, 0.1, 0.1), 64),
-    Material(vec3(0.5, 0.2, 0.6), 512),
-    Material(vec3(1.0, 0.7, 0.3), 64),
-    Material(vec3(1.0, 0.7, 0.3), 4096),
-    Material(vec3(1.0, 0.7, 0.3), 4096)
+    Material(vec3(0.25, 0.25, 0.28), 16.0, 0.2),  // engine block
+    Material(vec3(0.80, 0.82, 0.85), 128.0, 0.7), // piston
+    Material(vec3(0.75, 0.55, 0.25), 128.0, 0.6), // conrod
+    Material(vec3(0.70, 0.70, 0.75), 512.0, 0.7), // crankshaft
+    Material(vec3(0.65, 0.65, 0.70), 512.0, 0.7), // camshaft
+    Material(vec3(0.85, 0.85, 0.90), 256.0, 0.3), // valves
+    Material(vec3(0.35, 0.35, 0.40), 64.0, 0.5)   // timing gear
 );
 
-// SDFs
+// SDFs (formule sdf prese da: https://iquilezles.org/articles/distfunctions/)
 float sdSphere(vec3 center, float radius) {
     return length(center) - radius;
 }
 
+float sdBox2D(vec2 p, vec2 b) {
+    vec2 d = abs(p) - b;
+    return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
+}
+
 float sdBox(vec3 p, vec3 b) {
-    vec3 q = abs(p) - q;
-    return lenght(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0);
+    vec3 q = abs(p) - b;
+    return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0);
 }
 
 float sdCone(vec3 p, vec2 c, float h) {
@@ -84,7 +91,59 @@ float sdCylinder(vec3 p, vec2 h) {
     return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
 }
 
+float sdTorus(vec3 p, vec2 t) {
+    vec2 q = vec2(length(p.xz) - t.x, p.y);
+    return length(q) - t.y;
+}
+
+float sdCapsule(vec3 p, vec3 a, vec3 b, float r) {
+    vec3 pa = p - a, ba = b - a;
+    float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+    return length(pa - ba * h) - r;
+}
+
+// questa sdf specifica, non essendo comune l'ho creata con l'aiuto dell'intelligenza artificiale
+float sdGear(vec3 p, float r, float w, float teeth, float angle) {
+    float c = cos(angle), s = sin(angle);
+    mat2 rot = mat2(c, -s, s, c);
+    vec2 p2 = rot * p.xy;
+    float a = atan(p2.y, p2.x);
+    float r_mod = r + 0.15 * sin(a * teeth);
+    vec2 d = vec2(length(p2) - r_mod, abs(p.z) - w);
+    return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
+}
+
 // Shape operations
+float opUnion(float a, float b) {
+    return min(a, b);
+}
+
+float opIntersect(float a, float b) {
+    return max(a, b);
+}
+
+float opSubtract(float a, float b) {
+    return max(a, -b);
+}
+
+float opSmoothUnion(float a, float b, float k) {
+    float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+    float d = mix(b, a, h) - k * h * (1.0 - h);
+    return d;
+}
+
+float opSmoothIntersect(float a, float b, float k) {
+    float h = clamp(0.5 - 0.5 * (b - a) / k, 0.0, 1.0);
+    float d = mix(b, a, h) + k * h * (1.0 - h);
+    return d;
+}
+
+float opSmoothSubtract(float a, float b, float k) {
+    float h = clamp(0.5 - 0.5 * (a + b) / k, 0.0, 1.0);
+    float d = mix(a, -b, h) + k * h * (1.0 - h);
+    return d;
+}
+
 vec2 opRevolution(vec3 p, float w) {
     return vec2(length(p.xz) - w, p.y);
 }
@@ -98,54 +157,16 @@ float opRound(float sdf, float r) {
     return sdf - r;
 }
 
-// Interaction operations
-HitInfo opUnion(HitInfo a, HitInfo b) {
-    return (a.distance < b.distance) ? a : b;
-}
-
-HitInfo opIntersect(HitInfo a, HitInfo b) {
-    return (a.distance < b.distance) ? b : a;
-}
-
-HitInfo opSubtract(HitInfo a, HitInfo b) {
-    HitInfo res = a;
-    float d = max(a.distance, -b.distance);
-    res.distance = d;
-    return res;
-}
-
-HitInfo opSmoothUnion(HitInfo a, HitInfo b, float k) {
-    HitInfo res = (a.distance < b.distance) ? a : b;
-    float h = clamp(0.5 + 0.5 * (b.distance - a.distance) / k, 0.0, 1.0);
-    float d = mix(b.distance, a.distance, h) - k * h * (1.0 - h);
-    res.distance = d;
-    return res;
-}
-
-HitInfo opSmoothIntersect(HitInfo a, HitInfo b, float k) {
-    HitInfo res = (a.distance > b.distance) ? a : b;
-    float h = clamp(0.5 - 0.5 * (b.distance - a.distance) / k, 0.0, 1.0);
-    float d = mix(b.distance, a.distance, h) + k * h * (1.0 - h);
-    res.distance = d;
-    return res;
-}
-
-HitInfo opSmoothSubtract(HitInfo a, HitInfo b, float k) {
-    HitInfo res = a;
-    float h = clamp(0.5 - 0.5 * (a.distance + b.distance) / k, 0.0, 1.0);
-    float d = mix(a.distance, -b.distance, h) + k * h * (1.0 - h);
-    res.distance = d;
-    return res;
-}
+#define MOTORE
 
 HitInfo map(vec3 p) {
-    vec3 sp1_origin = vec3(0, 0, 10) - p;
-    vec3 sp2_origin = vec3(5, 0, 12) - p;
-
-    HitInfo sp1 = HitInfo(sdSphere(sp1_origin, 3.0 + abs(sin(uTime * 0.2) * 2.0)), 5);
-    HitInfo sp2 = HitInfo(sdSphere(sp2_origin, 8), 5);
-
-    return opSubtract(sp2, sp1);
+#ifdef MOTORE
+    // scena motore
+#endif
+#ifndef MOTORE
+    // scena con forme smooth union in movimento e dei riflessi
+#endif
+    return scene;
 }
 
 vec3 approx_norm(vec3 p) {
@@ -165,11 +186,11 @@ float computeDiffuse(vec3 p, vec3 norm, Light l) { // Lambert model
     return max(0, dot(norm, p2l_dir)) * l.intensity;
 }
 
-float computeSpecular(vec3 p, vec3 norm, Light l, Material mat) { // Phong model
+vec3 computeSpecular(vec3 p, vec3 norm, Light l, Material mat) { // Phong model
     vec3 l2p_dir = normalize(p - l.position);
     vec3 reflection = reflect(l2p_dir, norm);
     vec3 p2cam_dir = normalize(uCamPos - p);
-    return pow(max(0, dot(reflection, p2cam_dir)), mat.shininess);
+    return pow(max(0, dot(reflection, p2cam_dir)), mat.shininess) * l.color;
 }
 
 vec3 rotate(vec4 q, vec3 p) { // fast formula to rotate a point with a unit quaternion
@@ -203,7 +224,7 @@ void main()
 
             float ambient = AMBIENT_I;
             float diffuse = 0.0;
-            float specular = 0.0;
+            vec3 specular = vec3(0);
 
             for (int i = 0; i < lights.length(); i++) {
                 Light l = lights[i];
@@ -218,7 +239,13 @@ void main()
                 }
             }
 
-            FragColor = vec4((ambient + diffuse + specular) * mat.color, 1);
+            //rifare cosi:
+
+            // loop max bounce, raggio perde energia ogni rimbalzo
+            //      calcolo parte non riflessa
+            //      mi fermo se non rifletto piu
+
+            FragColor = vec4((ambient + diffuse) * mat.color + specular, 1);
             return;
         }
 
