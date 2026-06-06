@@ -1,6 +1,3 @@
 implementare:
-rimbalzi su mat spec
 blending colori
-scene
-
-sistemare:
+scena motore, oggetti fusi e rifletenti, subi rotatinti infiniti

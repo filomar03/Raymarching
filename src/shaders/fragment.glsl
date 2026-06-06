@@ -55,8 +55,8 @@ struct HitInfo {
 #define DIR_LIGHT 99999999
 #define AMBIENT_I 0.15
 Light lights[] = Light[](
-    Light(vec3(0.0, 0.0, 0.0), true, vec3(1), 0.7),
-    Light(normalize(vec3(1.0, 3.0, -1.0)) * DIR_LIGHT, false, vec3(1), 0.2)
+    Light(vec3(0.0, 0.0, 0.0), true, vec3(1), 0.25),
+    Light(normalize(vec3(1.0, 3.0, -1.0)) * DIR_LIGHT, false, vec3(1), 0.07)
 );
 
 Material mats[] = Material[](
@@ -200,11 +200,11 @@ float computeDiffuse(vec3 p, vec3 norm, Light l) { // Lambert model
     return max(0, dot(norm, p2l_dir)) * l.intensity;
 }
 
-vec3 computeSpecular(vec3 p, vec3 norm, Light l, Material mat) { // Phong model
+vec3 computeSpecular(vec3 p, vec3 norm, vec3 observer_pos, Light l, Material mat) { // Phong model
     vec3 l2p_dir = normalize(p - l.position);
     vec3 reflection = reflect(l2p_dir, norm);
-    vec3 p2cam_dir = normalize(uCamPos - p);
-    return pow(max(0, dot(reflection, p2cam_dir)), mat.shininess) * l.color;
+    vec3 p2observer_dir = normalize(observer_pos - p);
+    return pow(max(0, dot(reflection, p2observer_dir)), mat.shininess) * l.color * l.intensity;
 }
 
 vec3 rotate(vec4 q, vec3 p) { // fast formula to rotate a point with a unit quaternion
@@ -246,9 +246,11 @@ void main()
 
     vec3 ray = normalize(rotate(uCamRot, vec3(uv, 1))); // near is set to 1, since changing it doesn't affect the rendering (for now)
 
+    vec3 ray = normalize(rotate(uCamRot, vec3(uv, 1))); // near is set to 1, since changing it doesn't affect the rendering (for now)
+
     vec3 p = uCamPos;
-    float travel = 0.0;
-    int step = 0;
+    vec3 ray = normalize(rotate(uCamRot, vec3(uv, 1))); // near is set to 1, since changing it doesn't affect the rendering (for now)
+    vec3 observer_position = uCamPos;
 
     float ray_energy = 1.0;
     vec3 final_color;
@@ -275,7 +277,7 @@ void main()
 
                     diffuse += computeDiffuse(p, norm, l);
                     if (mat.shininess > 0) {
-                        specular += computeSpecular(p, norm, l, mat);
+                        specular += computeSpecular(p, norm, observer_position, l, mat);
                     }
                 }
 
