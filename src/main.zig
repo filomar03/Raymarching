@@ -238,15 +238,13 @@ fn moveCamera(window: *glfw.Window) void {
     const left: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.a) == glfw.Action.press));
     const up: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.q) == glfw.Action.press));
     const down: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.e) == glfw.Action.press));
+    var input: glm.Vec3 = .{ .x = right + -left, .y = up + -down, .z = forward + -backwards };
+    input = input.normalize();
 
-    const cam_move: glm.Vec3 = .{ .x = right + -left, .y = 0.0, .z = forward + -backwards };
-    const cam_forward = state.camera.rotation.rotateVec(cam_move);
-
-    const world_move: glm.Vec3 = .{.x = 0.0, .y = up + -down, .z = 0.0};
-    const total_move = cam_forward.sum(world_move).normalize();
+    const cam_forward = state.camera.rotation.rotateVec(input);
 
     var pos = &state.camera.position;
-    pos.* = pos.sum(total_move.mul(cam_speed).mul(state.dt));
+    pos.* = pos.sum(cam_forward.mul(cam_speed).mul(state.dt));
     const shader = state.shader orelse return;
     gl.uniform3fv(shader.uniforms.cam_pos, 1, &state.camera.position.toArray());
 }
