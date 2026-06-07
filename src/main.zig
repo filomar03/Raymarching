@@ -193,6 +193,7 @@ pub fn main() !void {
         if (now - last_perf_update >= PERF_UPDATE_INTERVAL) {
             last_perf_update = now;
             try console.print("\x1b[2J\x1b[HFPS: {:.0}\n", .{1 / state.debug.performance.getAvgFrameTime()});
+            try console.print("SPEED: {} {} {}\n", .{cam_speed.x, cam_speed.y, cam_speed.z});
             try console.flush();
         }
     }
@@ -206,7 +207,9 @@ fn getInput(window: *glfw.Window) void {
 }
 
 const CAM_SENS = 0.002;
-const CAM_SPEED = glm.Vec3{ .x = 7.5, .y = 3, .z = 7.5 };
+const CAM_SPEED_DEF = glm.Vec3{ .x = 7.5, .y = 3, .z = 7.5 };
+var cam_speed = CAM_SPEED_DEF;
+var cam_speed_mod: f32 = 1;
 
 const NEAR_SENS = 7;
 const NEAR_MIN = 0.1;
@@ -243,7 +246,7 @@ fn moveCamera(window: *glfw.Window) void {
     const total_move = cam_forward.sum(world_move).normalize();
 
     var pos = &state.camera.position;
-    pos.* = pos.sum(total_move.mul(CAM_SPEED).mul(state.dt));
+    pos.* = pos.sum(total_move.mul(cam_speed).mul(state.dt));
     const shader = state.shader orelse return;
     gl.uniform3fv(shader.uniforms.cam_pos, 1, &state.camera.position.toArray());
 }
@@ -301,10 +304,16 @@ fn adjustCamFov(scroll: f32) void {
 }
 
 fn scrollCallback(window: *glfw.Window, x_offset: f64, y_offset: f64) callconv(.c) void {
-    _ = window;
     _ = x_offset;
+    const scroll = @as(f32, @floatCast(y_offset));
 
-    adjustCamFov(@floatCast(y_offset));
+    if (glfw.getKey(window, glfw.Key.left_control) == glfw.Action.press) {
+        adjustCamFov(scroll);
+    } else {
+        cam_speed_mod = std.math.clamp(cam_speed_mod + scroll / 4, 0.1, 10.0);
+        cam_speed = CAM_SPEED_DEF.mul(cam_speed_mod);
+    }
+
 }
 
 fn fbResizeCallback(window: *glfw.Window, width: c_int, height: c_int) callconv(.c) void {
