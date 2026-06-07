@@ -14,7 +14,7 @@ out vec4 FragColor;
 #define HIT_DISTANCE 0.001
 #define MAX_STEP 1000
 #define MAX_TRAVEL 5000.0
-#define EPSILON 0.0001
+#define EPSILON 0.001
 #define MAX_BOUNCE 5
 #define NUDGE 0.01
 
@@ -59,6 +59,7 @@ Light lights[] = Light[](
 );
 
 Material mats[] = Material[](
+    Material(vec3(0.5, 0.5, 0.5), 16.0, 0.0),  // def material
     Material(vec3(0.25, 0.25, 0.28), 16, 0.0),  // engine block
     Material(vec3(0.80, 0.82, 0.85), 128.0, 1), // piston
     Material(vec3(0.75, 0.55, 0.25), 128.0, 0.1), // conrod
@@ -67,6 +68,56 @@ Material mats[] = Material[](
     Material(vec3(0.85, 0.85, 0.90), 256.0, 0.0), // valves
     Material(vec3(0.35, 0.35, 0.40), 64.0, 0.5)   // timing gear
 );
+
+// Shape operations
+float opUnion(float a, float b) {
+    return min(a, b);
+}
+
+float opIntersect(float a, float b) {
+    return max(a, b);
+}
+
+float opSubtract(float a, float b) {
+    return max(a, -b);
+}
+
+float opSmoothUnion(float a, float b, float k) {
+    float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+    float d = mix(b, a, h) - k * h * (1.0 - h);
+    return d;
+}
+
+float opSmoothIntersect(float a, float b, float k) {
+    float h = clamp(0.5 - 0.5 * (b - a) / k, 0.0, 1.0);
+    float d = mix(b, a, h) + k * h * (1.0 - h);
+    return d;
+}
+
+float opSmoothSubtract(float a, float b, float k) {
+    float h = clamp(0.5 - 0.5 * (a + b) / k, 0.0, 1.0);
+    float d = mix(a, -b, h) + k * h * (1.0 - h);
+    return d;
+}
+
+vec2 opRevolution(vec3 p, float w) {
+    return vec2(length(p.xz) - w, p.y);
+}
+
+float opExtrusion(vec3 p, float sdf2d, float h) {
+    vec2 w = vec2(sdf2d, abs(p.z) - h);
+    return min(max(w.x, w.y), 0.0) + length(max(w, 0.0));
+}
+
+float opRound(float sdf, float r) {
+    return sdf - r;
+}
+
+// float opRepetition( in vec3 p, in vec3 s, in sdf3d primitive )
+// {
+//     vec3 q = p - s*round(p/s);
+//     return primitive( q );
+// }
 
 // SDFs (formule prese da: https://iquilezles.org/articles/distfunctions/)
 float sdSphere(vec3 center, float radius) {
@@ -127,59 +178,70 @@ float sdGear(vec3 p, float r, float w, float teeth, float angle) {
     return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
 }
 
-// Shape operations
-float opUnion(float a, float b) {
-    return min(a, b);
-}
-
-float opIntersect(float a, float b) {
-    return max(a, b);
-}
-
-float opSubtract(float a, float b) {
-    return max(a, -b);
-}
-
-float opSmoothUnion(float a, float b, float k) {
-    float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
-    float d = mix(b, a, h) - k * h * (1.0 - h);
-    return d;
-}
-
-float opSmoothIntersect(float a, float b, float k) {
-    float h = clamp(0.5 - 0.5 * (b - a) / k, 0.0, 1.0);
-    float d = mix(b, a, h) + k * h * (1.0 - h);
-    return d;
-}
-
-float opSmoothSubtract(float a, float b, float k) {
-    float h = clamp(0.5 - 0.5 * (a + b) / k, 0.0, 1.0);
-    float d = mix(a, -b, h) + k * h * (1.0 - h);
-    return d;
-}
-
-vec2 opRevolution(vec3 p, float w) {
-    return vec2(length(p.xz) - w, p.y);
-}
-
-float opExtrusion(vec3 p, float sdf2d, float h) {
-    vec2 w = vec2(sdf2d, abs(p.z) - h);
-    return min(max(w.x, w.y), 0.0) + length(max(w, 0.0));
-}
-
-float opRound(float sdf, float r) {
-    return sdf - r;
-}
-
-// float opRepetition( in vec3 p, in vec3 s, in sdf3d primitive )
-// {
-//     vec3 q = p - s*round(p/s);
-//     return primitive( q );
-// }
-
 SceneInfo map(vec3 p) {
-    
-    return scene;
+    // values
+    float alignment_nudge = 0.1;
+
+    vec3 engine_position = vec3(0.0, 0.0, 5.0);
+    vec3 local_p = p - engine_position;
+
+    float cylinder_spacing = 0.2;
+    float cylinder_bore = 2.0;
+
+    float piston_height = 1.25;
+    float piston_skirt_height = 0.85;
+    float piston_skirt_tickness = 0.1;
+    float piston_pin_bore = 0.2;
+    float piston_ring_thickness = 0.025;
+    float piston_ring_height = 0.075;
+    float piston_rings_distance = 0.15;
+
+    float conrod_length = 4.0;
+    float conrod_head_radius = 0.6;
+
+    float crank_radius = 1.2;
+    float crank_journal_length = 0.8;
+    float crank_cweight_length = 0.5;
+    float crank_cylinder_radius = 0.7;
+
+    // PISTON/S
+    float d_pistons = MAX_TRAVEL;
+    vec3 piston_pos = local_p;
+
+    for (int i = 0; i < 4; i++) {
+        piston_pos += vec3(0, 0, -(cylinder_bore + cylinder_spacing));
+
+        float outer_h = piston_height * 0.5;
+        float outer_r = cylinder_bore * 0.5 - piston_ring_thickness;
+        vec3 outer_pos = piston_pos + vec3(0.0, outer_h, 0.0);
+        float d_piston = sdCylinder(outer_pos, vec2(outer_r, outer_h));
+
+        float inner_h = piston_skirt_height * 0.5;
+        float inner_r = outer_r - piston_skirt_tickness;
+        vec3 inner_pos = piston_pos + vec3(0.0, piston_height - inner_h + alignment_nudge, 0.0);
+        d_piston = opSubtract(d_piston, sdCylinder(inner_pos, vec2(inner_r, inner_h)));
+
+        float pin_h = outer_r + alignment_nudge;
+        float pin_r = piston_pin_bore * 0.5;
+        vec3 pin_pos = piston_pos + vec3(0.0, piston_height - piston_skirt_height + pin_r, 0.0);
+        d_piston = opSubtract(d_piston, sdCylinder(pin_pos.xzy, vec2(pin_r, pin_h)));
+
+        float ring_h = piston_ring_height * 0.5;
+        float ring_r = cylinder_bore * 0.5;
+        vec3 ring_pos = pin_pos + vec3(0.0, -pin_r - ring_h, 0.0);
+        d_piston = opUnion(d_piston, sdCylinder(ring_pos, vec2(ring_r, ring_h)));
+        d_piston = opUnion(d_piston, sdCylinder(ring_pos - vec3(0, piston_rings_distance, 0), vec2(ring_r, ring_h)));
+
+        d_pistons = opUnion(d_pistons, d_piston);
+    }
+
+    // SECTION
+    vec3 section_pos = piston_pos - vec3(MAX_TRAVEL, 0, 0);
+    float d_section = sdBox(section_pos, vec3(MAX_TRAVEL));
+
+
+    // return SceneInfo(d_piston, 0);
+    return SceneInfo(opSubtract(d_pistons, d_section), 0);
 }
 
 vec3 approx_norm(vec3 p) {
