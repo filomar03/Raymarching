@@ -12,10 +12,10 @@ out vec4 FragColor;
 
 // Rendering params
 #define HIT_DISTANCE 0.001
-#define MAX_STEP 1000
-#define MAX_TRAVEL 5000.0
+#define MAX_STEP 500
+#define MAX_TRAVEL 3000.0
 #define EPSILON 0.001
-#define MAX_BOUNCE 5
+#define MAX_BOUNCE 3
 #define NUDGE 0.01
 
 #define HIT 0
@@ -48,15 +48,27 @@ struct HitInfo {
 };
 
 // Scene constants
-#define COLOR_SKY_BOX vec3(0.75, 0.87, 0.89)
-#define COLOR_OUT_OF_STEP vec3(0, 1, 0.24)
+#define COLOR_SKY_BOX vec3(213, 227, 229) / 255.0
+#define COLOR_OUT_OF_STEP vec3(0, 1, 0)
+#define COLOR_LIGHT vec3(238, 202, 198) / 255.0
 
 #define DIR_LIGHT 99999999
 #define AMBIENT_I 0.15
 Light lights[] = Light[](
-    Light(vec3(0.0, 0.0, 0.0), true, vec3(1), 0.25),
-    Light(normalize(vec3(1.0, 3.0, -1.0)) * DIR_LIGHT, false, vec3(1), 0.07)
+    Light(vec3(0.0, 0.0, 0.0), true, COLOR_LIGHT, 0.45),
+    Light(normalize(vec3(1.0, 3.0, -1.0)) * DIR_LIGHT, false, COLOR_LIGHT, 0.07)
 );
+
+#define MAT_DEFAULT      0
+#define MAT_BLOCK        1
+#define MAT_PISTON       2
+#define MAT_CONROD       3
+#define MAT_CRANKSHAFT   4
+#define MAT_CAMSHAFT     5
+#define MAT_VALVES       6
+#define MAT_GEARS        7
+#define MAT_RINGS        8
+#define MAT_BELT         9
 
 Material mats[] = Material[](
     Material(vec3(0.5, 0.5, 0.5), 16.0, 0.0),  // def material
@@ -168,80 +180,218 @@ float sdLink( vec3 p, float le, float r1, float r2 )
 }
 
 // questa sdf, non essendo comune l'ho creata con l'aiuto dell'intelligenza artificiale
-float sdGear(vec3 p, float r, float w, float teeth, float angle) {
-    float c = cos(angle), s = sin(angle);
-    mat2 rot = mat2(c, -s, s, c);
-    vec2 p2 = rot * p.xy;
-    float a = atan(p2.y, p2.x);
-    float r_mod = r + 0.15 * sin(a * teeth);
-    vec2 d = vec2(length(p2) - r_mod, abs(p.z) - w);
-    return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
+float sdGear(vec3 p, float r, float w, float teeth, float td, float angle) {
+    float c = cos(angle), s = sin(angle); // ===|
+    mat2 rot = mat2(c, -s, s, c);         //    | rotate coordinate space
+    vec2 p2 = rot * p.xy;                 // ===|
+
+    float a = atan(p2.y, p2.x); // ===| find angle
+
+    float r_mod = r + td * sin(a * teeth); // ===| creates tooth
+
+    vec2 d = vec2(length(p2) - r_mod, abs(p.z) - w);          // ===| extrude and compute distance
+    float ed = min(max(d.x, d.y), 0.0) + length(max(d, 0.0)); // ===|
+    return ed * 0.8; // ==| reduces distance since it can overshoot, r_mod is radial distance not euclidean distance
 }
 
-SceneInfo map(vec3 p) {
-    // values
-    float alignment_nudge = 0.1;
+#define X vec3(1.0, 0.0, 0.0)
+#define Y vec3(0.0, 1.0, 0.0)
+#define Z vec3(0.0, 0.0, 1.0)
+#define A_NUDGE 0.01
+#define LIMITER 10
 
-    vec3 engine_position = vec3(0.0, 0.0, 5.0);
-    vec3 local_p = p - engine_position;
+SceneInfo map(vec3 p) {
+    vec3 engine_pos = p - vec3(0.0, -3.0, 3.0);
 
     float cylinder_spacing = 0.2;
     float cylinder_bore = 2.0;
 
-    float piston_height = 1.25;
-    float piston_skirt_height = 0.85;
+    float engine_squish = 0.2;
+
+    float piston_height = 1.0;
+    float piston_skirt_height = 0.45;
     float piston_skirt_tickness = 0.1;
     float piston_pin_bore = 0.2;
     float piston_ring_thickness = 0.025;
-    float piston_ring_height = 0.075;
-    float piston_rings_distance = 0.15;
+    float piston_ring_height = 0.05;
+    float piston_ring_top_dist = 0.1;
+    float piston_rings_dist = 0.15;
 
-    float conrod_length = 4.0;
-    float conrod_head_radius = 0.6;
+    float conrod_length = 1.5;
+    float conrod_radius = 0.2;
+    float conrod_head_radius = 0.275;
+    float conrod_head_length = 0.75;
 
-    float crank_radius = 1.2;
-    float crank_journal_length = 0.8;
-    float crank_cweight_length = 0.5;
-    float crank_cylinder_radius = 0.7;
+    float crank_radius = 0.5;
+    float crank_journal_radius = 0.25;
+    float crank_journal_length = 1.0;
+    float crank_cweight_length = 0.3;
 
-    // PISTON/S
+    float crank_angle = LIMITER * radians(360) * (uTime / 60.0);
+    float phases[4] = float[](0.0, 1.57079, 4.71238, 3.14159);
+
+    vec3 timing_gear_pos;
+    float crank_gear_radius = 1.0;
+    float crank_gear_teeth = 32;
+    float crank_gear_thickness = 0.1;
+    float crank_gear_tdepth = 0.03;
+
+    float engine_lenght = phases.length() * (cylinder_bore + cylinder_spacing) + cylinder_spacing;
+    float engine_height = (piston_height - piston_skirt_height) + conrod_length + crank_radius * 2 + crank_journal_radius + engine_squish + cylinder_spacing * 2;
+    float block_h = engine_height * 0.5;
+    float block_w = cylinder_bore * 0.5 + cylinder_spacing;
+    float block_l = engine_lenght * 0.5;
+
+    // DUPLICATE PARTS
+    float d_dbg = MAX_TRAVEL; // DEBUG REMOVE LATER
     float d_pistons = MAX_TRAVEL;
-    vec3 piston_pos = local_p;
+    float d_rings = MAX_TRAVEL;
+    float d_conrods = MAX_TRAVEL;
+    float d_cranks = MAX_TRAVEL;
+    float d_block_cyllinders = MAX_TRAVEL;
+    for (int i = 0; i < phases.length(); i++) {
+        float crank_pin_angle = crank_angle + phases[i];
+        vec3 cylinder_offset = Z * (cylinder_bore + cylinder_spacing) * i;
 
-    for (int i = 0; i < 4; i++) {
-        piston_pos += vec3(0, 0, -(cylinder_bore + cylinder_spacing));
+        float journal_h = crank_journal_length * 0.5;
+        float journal_r = crank_journal_radius * 0.5;
 
+        vec3 crank_pos = engine_pos - cylinder_offset;
+        vec3 crank_pin_offset = vec3(cos(crank_pin_angle), sin(crank_pin_angle), 0.0) * crank_radius;
+
+        float conrod_y = sqrt(conrod_length * conrod_length - crank_pin_offset.x * crank_pin_offset.x);
+
+        // PISTONS
         float outer_h = piston_height * 0.5;
         float outer_r = cylinder_bore * 0.5 - piston_ring_thickness;
-        vec3 outer_pos = piston_pos + vec3(0.0, outer_h, 0.0);
-        float d_piston = sdCylinder(outer_pos, vec2(outer_r, outer_h));
-
         float inner_h = piston_skirt_height * 0.5;
         float inner_r = outer_r - piston_skirt_tickness;
-        vec3 inner_pos = piston_pos + vec3(0.0, piston_height - inner_h + alignment_nudge, 0.0);
-        d_piston = opSubtract(d_piston, sdCylinder(inner_pos, vec2(inner_r, inner_h)));
-
-        float pin_h = outer_r + alignment_nudge;
+        float pin_h = outer_r + A_NUDGE;
         float pin_r = piston_pin_bore * 0.5;
-        vec3 pin_pos = piston_pos + vec3(0.0, piston_height - piston_skirt_height + pin_r, 0.0);
-        d_piston = opSubtract(d_piston, sdCylinder(pin_pos.xzy, vec2(pin_r, pin_h)));
 
+        vec3 piston_pin_pos = crank_pos - Y * (crank_pin_offset.y + conrod_y);
+        vec3 piston_bot_pos = piston_pin_pos + Y * piston_skirt_height;
+        vec3 outer_pos = piston_bot_pos - Y * outer_h;
+        vec3 inner_pos = piston_bot_pos - Y * (inner_h - A_NUDGE);
+
+        float d_piston_outer = sdCylinder(outer_pos, vec2(outer_r, outer_h));
+        float d_piston_inner = sdCylinder(inner_pos, vec2(inner_r, inner_h));
+        float d_piston_pin_bore = sdCylinder(piston_pin_pos.xzy, vec2(pin_r, pin_h));
+
+        float d_piston = d_piston_outer;
+        d_piston = opSubtract(d_piston, d_piston_inner);
+        d_piston = opSubtract(d_piston, d_piston_pin_bore);
+        d_pistons = opUnion(d_pistons, d_piston);
+
+        // RINGS
         float ring_h = piston_ring_height * 0.5;
         float ring_r = cylinder_bore * 0.5;
-        vec3 ring_pos = pin_pos + vec3(0.0, -pin_r - ring_h, 0.0);
-        d_piston = opUnion(d_piston, sdCylinder(ring_pos, vec2(ring_r, ring_h)));
-        d_piston = opUnion(d_piston, sdCylinder(ring_pos - vec3(0, piston_rings_distance, 0), vec2(ring_r, ring_h)));
 
-        d_pistons = opUnion(d_pistons, d_piston);
+        vec3 ring_pos = piston_bot_pos - Y * (piston_height - ring_h - piston_ring_top_dist);
+
+        float d_piston_ring1 = sdCylinder(ring_pos, vec2(ring_r, ring_h));
+        float d_piston_ring2 = sdCylinder(ring_pos + Y * piston_rings_dist, vec2(ring_r, ring_h));
+
+        float d_ring = d_piston_ring1;
+        d_ring = opUnion(d_ring, d_piston_ring2);
+        d_rings = opUnion(d_rings, d_ring);
+
+        // CONROD
+        float conrod_head_h = conrod_head_length * 0.5;
+
+        vec3 conrod_head_pos = crank_pos - crank_pin_offset;
+
+        float d_conrod_caps = sdCapsule(p, p - piston_pin_pos, p - conrod_head_pos, conrod_radius);
+        float d_conrod_wrist = sdCylinder(piston_pin_pos.xzy, vec2(pin_r, pin_h));
+        float d_conrod_head = sdCylinder(conrod_head_pos.xzy, vec2(conrod_head_radius, conrod_head_h));
+
+        float d_conrod = d_conrod_caps;
+        d_conrods = opUnion(d_conrods, d_conrod);
+        d_conrods = opUnion(d_conrods, d_conrod_wrist);
+        d_conrods = opUnion(d_conrods, d_conrod_head);
+
+        // CRANKSHAFT
+        float cweight_h = crank_cweight_length * 0.5;
+        float cweight_offset = journal_h + cweight_h;
+        float jorunal_h = crank_journal_length * 0.5;
+
+        vec3 cweight_fw_pos = crank_pos + Z * cweight_offset;
+        vec3 cweight_bw_pos = crank_pos - Z * cweight_offset;
+        vec3 journal_next_pos = crank_pos - Z * (cylinder_bore + cylinder_spacing) * 0.5;
+
+        float journal_next_h = (cylinder_bore + cylinder_spacing - crank_journal_length) * 0.5 - crank_cweight_length;
+
+        timing_gear_pos = journal_next_pos - Z * (journal_next_h + crank_gear_thickness * 0.5);
+
+        float d_journal = sdCylinder(conrod_head_pos.xzy, vec2(crank_journal_radius, jorunal_h));
+        float d_cweight_fw = sdCylinder(cweight_fw_pos.xzy, vec2(crank_radius + crank_journal_radius, cweight_h));
+        float d_cweight_bw = sdCylinder(cweight_bw_pos.xzy, vec2(crank_radius + crank_journal_radius, cweight_h));
+        float d_journal_next = sdCylinder(journal_next_pos.xzy, vec2(crank_journal_radius, journal_next_h));
+
+        float d_crank = d_journal;
+        d_crank = opUnion(d_crank, d_cweight_fw);
+        d_crank = opUnion(d_crank, d_cweight_bw);
+        d_crank = opUnion(d_crank, d_journal_next);
+        d_cranks = opUnion(d_cranks, d_crank);
+
+        // BLOCK
+        float cyl_h = engine_height * 0.5 - cylinder_spacing;
+        float cyl_r = cylinder_bore * 0.5;
+
+        vec3 cylinder_pos = vec3(crank_pos.x, crank_pos.y + (crank_radius + crank_journal_radius - cyl_h), crank_pos.z);
+
+        float d_cylinder = sdCylinder(cylinder_pos, vec2(cyl_r, cyl_h));
+        d_block_cyllinders = opUnion(d_block_cyllinders, d_cylinder);
+
+        // VALVES
+        // float valve_offset = cylinder_bore * 0.2;
+
+        // vec3 tdc_pos = crank_pos - Y * (crank_radius + conrod_length + piston_height - piston_skirt_height);
+        // vec3 ivalve1_pos = tdc_pos + X * valve_offset + Z * valve_offset - Y * engine_squish;
+        // d_dbg = opUnion(d_dbg, sdSphere(ivalve1_pos, 0.1));
     }
 
+    // TIMING GEAR
+    float d_crank_gear = sdGear(timing_gear_pos, crank_gear_radius, crank_gear_thickness, crank_gear_teeth, crank_gear_tdepth, crank_angle);
+    float d_timing_gear = d_crank_gear;
+
+    // BLOCK
+    vec3 engine_center = engine_pos + Z * (cylinder_spacing + cylinder_bore * 0.5 - block_l);
+    engine_center += Y * (crank_radius + crank_journal_radius + cylinder_spacing - block_h);
+    vec3 crank_mjournal_pos = vec3(engine_center.x, engine_center.z, engine_pos.y);
+
+    float d_block = sdBox(engine_center + X * block_w * 0.5, vec3(block_w * 0.5, block_h, block_l));
+    float d_crank_cyl = sdCylinder(crank_mjournal_pos, vec2(crank_journal_radius * 1.5, engine_lenght * 0.5 - cylinder_spacing));
+    d_block = opSubtract(d_block, d_block_cyllinders);
+    d_block = opSubtract(d_block, d_crank_cyl);
+
     // SECTION
-    vec3 section_pos = piston_pos - vec3(MAX_TRAVEL, 0, 0);
+    vec3 section_pos = engine_pos - vec3(MAX_TRAVEL, 0, 0);
     float d_section = sdBox(section_pos, vec3(MAX_TRAVEL));
 
+    SceneInfo scene = SceneInfo(d_pistons, MAT_PISTON);
 
-    // return SceneInfo(d_piston, 0);
-    return SceneInfo(opSubtract(d_pistons, d_section), 0);
+    if (d_block < scene.distance) scene.mat_index = MAT_BLOCK;
+    scene.distance = opUnion(scene.distance, d_block);
+
+    // scene.distance = opSubtract(scene.distance, d_section);
+
+    if (d_conrods < scene.distance) scene.mat_index = MAT_CONROD;
+    scene.distance = opUnion(scene.distance, d_conrods);
+
+    if (d_rings < scene.distance) scene.mat_index = MAT_RINGS;
+    scene.distance = opUnion(scene.distance, d_rings);
+
+    if (d_cranks < scene.distance) scene.mat_index = MAT_CRANKSHAFT;
+    scene.distance = opUnion(scene.distance, d_cranks);
+
+    if (d_timing_gear < scene.distance) scene.mat_index = MAT_GEARS;
+    scene.distance = opUnion(scene.distance, d_timing_gear);
+
+    scene.distance = opUnion(scene.distance, d_dbg);
+
+
+    return scene;
 }
 
 vec3 approx_norm(vec3 p) {

@@ -1,3 +1,4 @@
 implementare:
-blending colori
-scena motore, oggetti fusi e rifletenti, subi rotatinti infiniti
+smooth sub per contrappesi crank
+ripulire codice map
+crank angle come uniform
