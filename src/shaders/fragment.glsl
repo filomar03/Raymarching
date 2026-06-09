@@ -12,7 +12,7 @@ uniform float uCrankAngle;
 out vec4 FragColor;
 
 // Rendering params
-#define HIT_DISTANCE 0.01
+#define HIT_DISTANCE 0.001
 #define MAX_STEP 300
 #define MAX_TRAVEL 500
 #define EPSILON 0.01
