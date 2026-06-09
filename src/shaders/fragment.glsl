@@ -52,13 +52,13 @@ struct HitInfo {
 #define COLOR_OUT_OF_STEP COLOR_SKY_BOX
 // #define COLOR_OUT_OF_STEP vec3(0, 1, 0)
 #define COLOR_SKY_BOX vec3(213, 227, 229) / 255.0
-#define COLOR_LIGHT vec3(238, 202, 198) / 255.0
+#define COLOR_LIGHT vec3(1.0, 0.92, 0.75)
 
 #define DIR_LIGHT 99999999
 #define AMBIENT_I 0.15
 Light lights[] = Light[](
-    Light(vec3(0.0, 0.0, 0.0), true, COLOR_LIGHT, 0.45),
-    Light(normalize(vec3(1.0, 3.0, -1.0)) * DIR_LIGHT, false, COLOR_LIGHT, 0.07)
+    Light(vec3(0.0, 0.0, 0.0), true, COLOR_LIGHT, 0.5),
+    Light(normalize(vec3(1.0, 3.0, -1.0)) * DIR_LIGHT, false, COLOR_LIGHT, 0.15)
 );
 
 #define MAT_BLOCK        0
@@ -69,12 +69,12 @@ Light lights[] = Light[](
 #define MAT_GEARS        5
 
 Material mats[] = Material[](
-    Material(vec3(0.47, 0.47, 0.47), 0.0, 0.01), // BLOCK
-    Material(vec3(0.75, 0.77, 0.80), 4096.0, 0.35), // PISTON
-    Material(vec3(0.35, 0.33, 0.32), 16.0, 0.15), // CONROD
-    Material(vec3(0.28, 0.28, 0.30), 128.0, 0.25), // CRANKSHAFT
-    Material(vec3(0.12, 0.12, 0.13), 16.0, 0.05), // RINGS
-    Material(vec3(0.35, 0.33, 0.32), 16.0, 0.15) // GEAR
+    Material(vec3(0.28, 0.29, 0.31), 0, 0.01),
+    Material(vec3(0.85, 0.86, 0.88), 2048, 0.25),
+    Material(vec3(0.42, 0.39, 0.37), 16, 0.15),
+    Material(vec3(0.50, 0.51, 0.53), 32, 0.03),
+    Material(vec3(0.12, 0.12, 0.13), 16, 0.05),
+    Material(vec3(0.45, 0.46, 0.45), 16, 0.15)
 );
 
 // Shape operations
