@@ -7,25 +7,29 @@ const zm = @import("zmath");
 
 const Console = engine.ConsoleInterface.Kind;
 
+// Parametri finestra
+const WINDOW_WIDTH = 800;
+const WINDOW_HEIGHT = 600;
+const VSYNC_SETTING = VSYNC_OFF;
+
+// Path shader
+const SHADER_DIR = "src/shaders";
+const VERTEX_SHADER_FILE = "vertex.glsl";
+const FRAGMENT_SHADER_FILE = "fragment.glsl";
+
+// Parametri shader
+const MAX_SHADER_SIZE = 1024 * 1024; // 1 Mib
+const INFO_LOG_MAX = 512;
+
+// Versione opengl
 const OPENGL_MAJOR = 3;
 const OPENGL_MINOR = 3;
 
-const WINDOW_WIDTH = 800;
-const WINDOW_HEIGHT = 600;
-
-const SRC_DIR = "src";
-const SHADER_DIR = "shaders";
-const VERTEX_SHADER_FILE = "vertex.glsl";
-const FRAGMENT_SHADER_FILE = "fragment.glsl";
-const MAX_SHADER_SIZE = 1024 * 1024; // 1 Mib
-
-const INFO_LOG_MAX = 512;
+// Update console
+const DBG_UPDATE_INTERVAL: f32 = 0.2;
 
 const VSYNC_ON = 1;
 const VSYNC_OFF = 0;
-const VSYNC_SETTING = VSYNC_ON;
-
-const DBG_UPDATE_INTERVAL: f32 = 0.2;
 
 const gl = opengl.bindings;
 
@@ -70,10 +74,7 @@ pub fn main() !void {
     }
 
     // Load shaders
-    const shader_path = try std.fs.path.join(allocator, &[_][]const u8{ SRC_DIR, SHADER_DIR });
-    defer allocator.free(shader_path);
-
-    var shader_dir = try std.fs.cwd().openDir(shader_path, .{});
+    var shader_dir = try std.fs.cwd().openDir(SHADER_DIR, .{});
     defer shader_dir.close();
 
     const vert_src = try shader_dir.readFileAllocOptions(allocator, VERTEX_SHADER_FILE, MAX_SHADER_SIZE, null, .of(u8), 0);
