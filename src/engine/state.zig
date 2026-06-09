@@ -5,7 +5,11 @@ pub const State = struct {
     console: ConsoleInterface = .{},
     shader: ?ShaderInterface = null,
     camera: CameraObject = .{},
+    now: f32 = 0,
     dt: f32 = 0,
+    simulation: SimulState = .{},
+    rpm: f32 = 0,
+    crank_angle: f32 = 0,
     debug: DebugInfo = .{},
 };
 
@@ -45,6 +49,7 @@ pub const ShaderInterface = struct {
         cam_fov: c_int,
         cam_pos: c_int,
         cam_rot: c_int,
+        crank_angle: c_int,
     };
 };
 
@@ -80,4 +85,16 @@ pub const PerfInfo = struct {
     pub fn getAvgFrameTime(self: Self) f32 {
         return self.frametimes_sum / FRAMETIME_RBUF_DIM;
     }
+};
+
+const LIMITER = 7000;
+const IDLE = 800;
+
+pub const SimulState = struct {
+    rpm: f32 = 0,
+    crank_angle: f64 = 0,
+    idle: f32 = IDLE,
+    limiter: f32 = LIMITER,
+    decel_rate: f32 = (LIMITER - IDLE) / 5.0,
+    accel_rate: f32 = 1000,
 };

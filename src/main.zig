@@ -24,7 +24,7 @@ const INFO_LOG_MAX = 512;
 const VSYNC_ON = 1;
 const VSYNC_OFF = 0;
 
-const PERF_UPDATE_INTERVAL: f32 = 1;
+const DBG_UPDATE_INTERVAL: f32 = 0.2;
 
 const gl = opengl.bindings;
 
@@ -165,6 +165,7 @@ pub fn main() !void {
         .cam_fov = gl.getUniformLocation(program, "uFov"),
         .cam_pos = gl.getUniformLocation(program, "uCamPos"),
         .cam_rot = gl.getUniformLocation(program, "uCamRot"),
+        .crank_angle = gl.getUniformLocation(program, "uCrankAngle"),
     } };
 
     state.shader = shader_interface;
@@ -173,14 +174,13 @@ pub fn main() !void {
     gl.uniform1f(shader_interface.uniforms.cam_fov, state.camera.fov);
     gl.uniform3fv(shader_interface.uniforms.cam_pos, 1, &state.camera.position.toArray());
 
-    var last_time: f32 = @floatCast(glfw.getTime());
-    var last_perf_update: f32 = 0;
+    var last_dbg_update: f32 = 0;
 
     // Render loop
     while (!window.shouldClose()) {
         const now = @as(f32, @floatCast(glfw.getTime()));
-        state.dt = now - last_time;
-        last_time = now;
+        state.dt = now - state.now;
+        state.now = now;
 
         glfw.pollEvents();
         getInput(window);
@@ -190,10 +190,11 @@ pub fn main() !void {
         window.swapBuffers();
 
         state.debug.performance.addFrametime(state.dt);
-        if (now - last_perf_update >= PERF_UPDATE_INTERVAL) {
-            last_perf_update = now;
+        if (now - last_dbg_update >= DBG_UPDATE_INTERVAL) {
+            last_dbg_update = now;
             try console.print("\x1b[2J\x1b[HFPS: {:.0}\n", .{1 / state.debug.performance.getAvgFrameTime()});
             try console.print("SPEED: {} {} {}\n", .{cam_speed.x, cam_speed.y, cam_speed.z});
+            try console.print("RPM: {}\n", .{@as(u32, @intFromFloat(state.simulation.rpm))});
             try console.flush();
         }
     }
@@ -203,12 +204,14 @@ pub fn main() !void {
 fn getInput(window: *glfw.Window) void {
     moveCamera(window);
     rotateCamera(window);
+    modifyRpm(window);
     detectQuit(window);
 }
 
 const CAM_SENS = 0.002;
 const CAM_SPEED_DEF = glm.Vec3{ .x = 7.5, .y = 3, .z = 7.5 };
 var cam_speed = CAM_SPEED_DEF;
+const CAM_SPEED_MOD: f32 = 1.0 / 32.0;
 var cam_speed_mod: f32 = 1;
 
 const NEAR_SENS = 7;
@@ -230,6 +233,29 @@ const X_AXIS: glm.Vec3 = .{
     .y = 0,
     .z = 0,
 };
+
+fn modifyRpm(window: *glfw.Window) void {
+    var sim = &state.simulation;
+
+    if (glfw.getMouseButton(window, glfw.MouseButton.right) == glfw.Action.press) {
+        sim.rpm = std.math.clamp(sim.rpm - std.math.pow(f32, sim.decel_rate, 1) * state.dt, 0, sim.limiter);
+    }
+
+    if (glfw.getMouseButton(window, glfw.MouseButton.left) == glfw.Action.press) {
+        sim.rpm = std.math.clamp(sim.rpm + sim.accel_rate * state.dt, 0, sim.limiter);
+    } else {
+        if (sim.rpm >= sim.idle) {
+            sim.rpm = std.math.clamp(sim.rpm - sim.decel_rate * state.dt, sim.idle, sim.limiter);
+        } else {
+            sim.rpm = std.math.clamp(sim.rpm - sim.decel_rate * state.dt, 0, sim.idle);
+        }
+    }
+
+    sim.crank_angle += sim.rpm * (state.dt / 60.0);
+
+    const shader_angle = @as(f32, @floatCast(@mod(sim.crank_angle, std.math.pi * 2)));
+    gl.uniform1f(state.shader.?.uniforms.crank_angle, shader_angle);
+}
 
 fn moveCamera(window: *glfw.Window) void {
     const forward: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.w) == glfw.Action.press));
@@ -308,7 +334,7 @@ fn scrollCallback(window: *glfw.Window, x_offset: f64, y_offset: f64) callconv(.
     if (glfw.getKey(window, glfw.Key.left_control) == glfw.Action.press) {
         adjustCamFov(scroll);
     } else {
-        cam_speed_mod = std.math.clamp(cam_speed_mod + scroll / 4, 0.1, 10.0);
+        cam_speed_mod = std.math.clamp(cam_speed_mod + scroll * CAM_SPEED_MOD, 0.1, 10.0);
         cam_speed = CAM_SPEED_DEF.mul(cam_speed_mod);
     }
 

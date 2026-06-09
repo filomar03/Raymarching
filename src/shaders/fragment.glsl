@@ -6,6 +6,7 @@ uniform float uTime;
 uniform float uFov;
 uniform vec3 uCamPos;
 uniform vec4 uCamRot;
+uniform float uCrankAngle;
 
 // Shader output
 out vec4 FragColor;
@@ -48,8 +49,9 @@ struct HitInfo {
 };
 
 // Scene constants
+#define COLOR_OUT_OF_STEP COLOR_SKY_BOX
+// #define COLOR_OUT_OF_STEP vec3(0, 1, 0)
 #define COLOR_SKY_BOX vec3(213, 227, 229) / 255.0
-#define COLOR_OUT_OF_STEP vec3(0, 1, 0)
 #define COLOR_LIGHT vec3(238, 202, 198) / 255.0
 
 #define DIR_LIGHT 99999999
@@ -59,26 +61,20 @@ Light lights[] = Light[](
     Light(normalize(vec3(1.0, 3.0, -1.0)) * DIR_LIGHT, false, COLOR_LIGHT, 0.07)
 );
 
-#define MAT_DEFAULT      0
-#define MAT_BLOCK        1
-#define MAT_PISTON       2
-#define MAT_CONROD       3
-#define MAT_CRANKSHAFT   4
-#define MAT_CAMSHAFT     5
-#define MAT_VALVES       6
-#define MAT_GEARS        7
-#define MAT_RINGS        8
-#define MAT_BELT         9
+#define MAT_BLOCK        0
+#define MAT_PISTON       1
+#define MAT_CONROD       2
+#define MAT_CRANKSHAFT   3
+#define MAT_RINGS        4
+#define MAT_GEARS        5
 
 Material mats[] = Material[](
-    Material(vec3(0.5, 0.5, 0.5), 16.0, 0.0),  // def material
-    Material(vec3(0.25, 0.25, 0.28), 16, 0.0),  // engine block
-    Material(vec3(0.80, 0.82, 0.85), 128.0, 1), // piston
-    Material(vec3(0.75, 0.55, 0.25), 128.0, 0.1), // conrod
-    Material(vec3(0.70, 0.70, 0.75), 512.0, 0.05), // crankshaft
-    Material(vec3(0.65, 0.65, 0.70), 512.0, 0.05), // camshaft
-    Material(vec3(0.85, 0.85, 0.90), 256.0, 0.0), // valves
-    Material(vec3(0.35, 0.35, 0.40), 64.0, 0.5)   // timing gear
+    Material(vec3(0.47, 0.47, 0.47), 0.0, 0.01), // BLOCK
+    Material(vec3(0.75, 0.77, 0.80), 4096.0, 0.35), // PISTON
+    Material(vec3(0.35, 0.33, 0.32), 16.0, 0.15), // CONROD
+    Material(vec3(0.28, 0.28, 0.30), 128.0, 0.25), // CRANKSHAFT
+    Material(vec3(0.12, 0.12, 0.13), 16.0, 0.05), // RINGS
+    Material(vec3(0.35, 0.33, 0.32), 16.0, 0.15) // GEAR
 );
 
 // Shape operations
@@ -227,7 +223,7 @@ SceneInfo map(vec3 p) {
     float crank_journal_length = 1.0;
     float crank_cweight_length = 0.3;
 
-    float crank_angle = LIMITER * radians(360) * (uTime / 60.0);
+    float crank_angle = uCrankAngle;
     float phases[4] = float[](0.0, 1.57079, 4.71238, 3.14159);
 
     vec3 timing_gear_pos;
@@ -243,7 +239,6 @@ SceneInfo map(vec3 p) {
     float block_l = engine_lenght * 0.5;
 
     // DUPLICATE PARTS
-    float d_dbg = MAX_TRAVEL; // DEBUG REMOVE LATER
     float d_pistons = MAX_TRAVEL;
     float d_rings = MAX_TRAVEL;
     float d_conrods = MAX_TRAVEL;
@@ -342,13 +337,6 @@ SceneInfo map(vec3 p) {
 
         float d_cylinder = sdCylinder(cylinder_pos, vec2(cyl_r, cyl_h));
         d_block_cyllinders = opUnion(d_block_cyllinders, d_cylinder);
-
-        // VALVES
-        // float valve_offset = cylinder_bore * 0.2;
-
-        // vec3 tdc_pos = crank_pos - Y * (crank_radius + conrod_length + piston_height - piston_skirt_height);
-        // vec3 ivalve1_pos = tdc_pos + X * valve_offset + Z * valve_offset - Y * engine_squish;
-        // d_dbg = opUnion(d_dbg, sdSphere(ivalve1_pos, 0.1));
     }
 
     // TIMING GEAR
@@ -374,8 +362,6 @@ SceneInfo map(vec3 p) {
     if (d_block < scene.distance) scene.mat_index = MAT_BLOCK;
     scene.distance = opUnion(scene.distance, d_block);
 
-    // scene.distance = opSubtract(scene.distance, d_section);
-
     if (d_conrods < scene.distance) scene.mat_index = MAT_CONROD;
     scene.distance = opUnion(scene.distance, d_conrods);
 
@@ -387,9 +373,6 @@ SceneInfo map(vec3 p) {
 
     if (d_timing_gear < scene.distance) scene.mat_index = MAT_GEARS;
     scene.distance = opUnion(scene.distance, d_timing_gear);
-
-    scene.distance = opUnion(scene.distance, d_dbg);
-
 
     return scene;
 }
