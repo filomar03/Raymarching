@@ -240,9 +240,9 @@ const float crank_cweight_offset = crank_journal_h + crank_cweight_h;
 const float crank_jorunal_h = crank_journal_length * 0.5;
 
 const float timing_gear_radius = 1.0;
-const float timing_gear_teeth = 32;
+const float timing_gear_teeth = 16;
 const float timing_gear_thickness = 0.1;
-const float timing_gear_tdepth = 0.03;
+const float timing_gear_tdepth = 0.07;
 vec3 timing_gear_pos;
 
 const float engine_lenght = phases.length() * (cylinder_bore + cylinder_spacing) + cylinder_spacing;
