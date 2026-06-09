@@ -23,6 +23,7 @@ const INFO_LOG_MAX = 512;
 
 const VSYNC_ON = 1;
 const VSYNC_OFF = 0;
+const VSYNC_SETTING = VSYNC_ON;
 
 const DBG_UPDATE_INTERVAL: f32 = 0.2;
 
@@ -51,7 +52,7 @@ pub fn main() !void {
     defer window.destroy();
 
     glfw.makeContextCurrent(window);
-    glfw.swapInterval(VSYNC_ON);
+    glfw.swapInterval(VSYNC_SETTING);
 
     try opengl.loadCoreProfile(glfw.getProcAddress, OPENGL_MAJOR, OPENGL_MINOR);
 
