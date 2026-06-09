@@ -220,8 +220,10 @@ SceneInfo map(vec3 p) {
 
     float crank_radius = 0.5;
     float crank_journal_radius = 0.25;
-    float crank_journal_length = 1.0;
-    float crank_cweight_length = 0.3;
+    float crank_journal_length = 0.8;
+    float crank_cweight_length = 0.25;
+    float crank_cw_rad_mul = 1.5;
+    float crank_cw_smooth = 0.6;
 
     float crank_angle = uCrankAngle;
     float phases[4] = float[](0.0, 1.57079, 4.71238, 3.14159);
@@ -310,8 +312,9 @@ SceneInfo map(vec3 p) {
         float cweight_offset = journal_h + cweight_h;
         float jorunal_h = crank_journal_length * 0.5;
 
-        vec3 cweight_fw_pos = crank_pos + Z * cweight_offset;
-        vec3 cweight_bw_pos = crank_pos - Z * cweight_offset;
+        vec3 cw_pin_pos = conrod_head_pos;
+        vec3 cw_journal_pos = crank_pos;
+        vec3 cw_opp_pos = crank_pos + crank_pin_offset * 2;
         vec3 journal_next_pos = crank_pos - Z * (cylinder_bore + cylinder_spacing) * 0.5;
 
         float journal_next_h = (cylinder_bore + cylinder_spacing - crank_journal_length) * 0.5 - crank_cweight_length;
@@ -319,13 +322,26 @@ SceneInfo map(vec3 p) {
         timing_gear_pos = journal_next_pos - Z * (journal_next_h + crank_gear_thickness * 0.5);
 
         float d_journal = sdCylinder(conrod_head_pos.xzy, vec2(crank_journal_radius, jorunal_h));
-        float d_cweight_fw = sdCylinder(cweight_fw_pos.xzy, vec2(crank_radius + crank_journal_radius, cweight_h));
-        float d_cweight_bw = sdCylinder(cweight_bw_pos.xzy, vec2(crank_radius + crank_journal_radius, cweight_h));
+
+        float d_cw0_handle = sdCylinder((cw_pin_pos + Z * cweight_offset).xzy, vec2(crank_journal_radius, cweight_h));
+        float d_cw0_jint = sdCylinder((cw_journal_pos + Z * cweight_offset).xzy, vec2(crank_radius + crank_journal_radius, cweight_h));
+        float d_cw0_oppint = sdCylinder((cw_opp_pos + Z * cweight_offset).xzy, vec2((crank_radius + crank_journal_radius) * crank_cw_rad_mul, cweight_h));
+        float d_cw0_opp = opIntersect(d_cw0_jint, d_cw0_oppint);
+        float d_cw0 = opSmoothUnion(d_cw0_opp, d_cw0_handle, crank_cw_smooth);
+        d_cw0 = opIntersect(d_cw0, d_cw0_jint);
+
+        float d_cw1_handle = sdCylinder((cw_pin_pos - Z * cweight_offset).xzy, vec2(crank_journal_radius, cweight_h));
+        float d_cw1_jint = sdCylinder((cw_journal_pos - Z * cweight_offset).xzy, vec2(crank_radius + crank_journal_radius, cweight_h));
+        float d_cw1_oppint = sdCylinder((cw_opp_pos - Z * cweight_offset).xzy, vec2((crank_radius + crank_journal_radius) * crank_cw_rad_mul, cweight_h));
+        float d_cw1_opp = opIntersect(d_cw1_jint, d_cw1_oppint);
+        float d_cw1 = opSmoothUnion(d_cw1_opp, d_cw1_handle, crank_cw_smooth);
+        d_cw1 = opIntersect(d_cw1, d_cw1_jint);
+
         float d_journal_next = sdCylinder(journal_next_pos.xzy, vec2(crank_journal_radius, journal_next_h));
 
         float d_crank = d_journal;
-        d_crank = opUnion(d_crank, d_cweight_fw);
-        d_crank = opUnion(d_crank, d_cweight_bw);
+        d_crank = opUnion(d_crank, d_cw0);
+        d_crank = opUnion(d_crank, d_cw1);
         d_crank = opUnion(d_crank, d_journal_next);
         d_cranks = opUnion(d_cranks, d_crank);
 
