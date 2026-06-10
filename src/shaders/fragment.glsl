@@ -16,7 +16,7 @@ out vec4 FragColor;
 #define MAX_STEP 300
 #define MAX_TRAVEL 100
 #define EPSILON 0.001
-#define MAX_BOUNCE 2
+#define MAX_BOUNCE 3
 #define NUDGE 0.01
 
 #define HIT 0

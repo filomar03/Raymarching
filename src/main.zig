@@ -10,7 +10,7 @@ const Console = engine.ConsoleInterface.Kind;
 // Parametri finestra
 const WINDOW_WIDTH = 800;
 const WINDOW_HEIGHT = 600;
-const VSYNC_SETTING = VSYNC_OFF;
+const VSYNC_SETTING = VSYNC_ON;
 
 // Path shader
 const SHADER_DIR = "src/shaders";
