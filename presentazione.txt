@@ -49,11 +49,11 @@ PRESENTAZIONE:
 	questo approccio ci permetterebbe di ridurre il tempo di attesa dei cu 	dopo una frammentazione del waveriduzione a patto che il primo passo 	venga velocizzato (spostando lo shading nel secondo e riducendo 	risoluzione), mentre nel secondo passo abbiamo gia le distanze e ogni 	raggio fa lo stenno numero di passi diminuendo di conseguenza la 	frammentazione
 	1) riduzione risoluzione:
 	 - diminuzione soglia di hit o overshoot delle distanze
-	 - approssimazione geometria (cached bounding boxes)
-	 - ray sorting (compatto i raggi che devono rimbalzare per essere eseguit su una sola wavefront)
+	 - approssimazione geometria (cached bounding boxes, impossibile nel mio caso dove la scena e' hardocoded)
+	 - ray sorting (compatto i raggi che devono rimbalzare per essere eseguit su una sola wavefront) (glDispatchComputeIndirect)
 	1) i raggi riflessi ripropongono il problema della frammentazione, quindi  possiamo: usare risuluzione ridotta sempre per i riflessi, attenuare energia raggio esponenzialmente in base al colore del materiale
 	2) cone marching:
 	attualmente impossibile perche tutti i fragment sono paralleli, e ogni 	raggio ha un proprio fragment, ma raggi molto vicini potrebbero 	condividere le distanze calcolate
 	3) partizionamenti spaziali gerarchici:
-	classico partizionamento gerarchico degli spazi, ci permetterebbe 	quindi di valutare solo una parte delle sdf invece che tutte
-	3) caching sdf: salvo valori distanze sdf in una texutre 3d, bisogna pero tenere traccia di sdf non costanti
+	classico partizionamento gerarchico degli spazi, ci permetterebbe 	quindi di valutare solo una parte delle sdf invece che tutte (impossibile nel mio caso dove la scena e' hardocoded)
+	3) caching sdf: salvo valori distanze sdf in una texutre 3d, bisogna pero' stare attenti a sdf che cambiano distanza nel tempo
