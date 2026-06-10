@@ -2,23 +2,23 @@ PRESENTAZIONE:
 
 1) come funziona raymarching:
 	ogni pixel spara un raggio, si calcola distanza
-	massima di cui si puo andare avanti prima di incontrare 
+	massima di cui si puo andare avanti prima di incontrare
 	un solido e ci si sposta avvicinandosi sempre di piu ad un solido
 2) cosa sono le SDF:
-	le sdf sono la base del raymarching, sono formule che 
+	le sdf sono la base del raymarching, sono formule che
 	rappresentano la distanza con segno dei solidi, la distanza e'
 	positiva se ci troviamo al di fuori del solido e negativa
-	quando siamo dentro, vengono usate per capire di quanto 
+	quando siamo dentro, vengono usate per capire di quanto
 	si puo spostare il raggio
 3) Cosa cambia da altri metodi:
-	e' completamente diverso da il rendering tradizionale (viene fatto 
+	e' completamente diverso da il rendering tradizionale (viene fatto
 	tutto in fragment shader, vertex solo per "abilitare" le fragment)
 	con rasterizzazione, e' funzionalmente simile ad un ray tracer, ma
 	i solidi vengono definiti tramite SDF.
 	nella mia implementazione si usa un fragment per ogni raggio
 4) I vantaggi:
-	questo ci permette di avere forme teoricamente perfette. 
-	(es: le sfere sono effettivamente sfere, 
+	questo ci permette di avere forme teoricamente perfette.
+	(es: le sfere sono effettivamente sfere,
 	non vengono approssimate con triangoli, quanto la proiezione sara
 	fedele dipende solo dalla risoluzione di tale proiezione e del
 	raymarcher)
@@ -33,16 +33,16 @@ PRESENTAZIONE:
 5) Illuminazione:
 	Modello di Lambert per illuminazione ambientale
 	Modello di Phong per illuminazione speculare
-6) Riflessioni: 
+6) Riflessioni:
 	per ottenere le riflessioni data la natura del raymarching,
-	ci basta riflettere il raggio rispetto alla normale del punto 
+	ci basta riflettere il raggio rispetto alla normale del punto
 	colpito.
 	Io l'ho implementato con materiali che hanno una certa riflettanza,
 	immagazino il colore prima di riflettere e diminuiso l'energia del
 	raggio riflesso
 7) Problema delle performance:
-	1) divisione wavefront: le gpu sono veloci perche eseguono in 	parallelo le stesse istruzioni su dati diversi, quando pero il raggio 	incontra un solido, esegue un branch per passare allo shading, in base 	alla scena questo branching puo capitare in momenti diversi per vari 	compute unit, e quindi frammenta la wavefront (sceglie un path del 	branche e mette in attesa i cu che non seguono quel path) che non puo 	piu eseguire in parallelo con tutti i compute unit.
-	2) anche se un raggio non tocca ma passa molto vicino ad un solido, 	piu si avvicina piu i passi che fara saranno piccoli e quindi aumenta 	il numero di step necessari
+	1) divisione wavefront: le gpu sono veloci perche eseguono in parallelo le stesse istruzioni su dati diversi, quando pero il raggio incontra un solido, esegue un branch per passare allo shading, in base alla scena questo branching puo capitare in momenti diversi per vari compute unit, e quindi frammenta la wavefront (sceglie un path del branche e mette in attesa i cu che non seguono quel path) che non puo piu eseguire in parallelo con tutti i compute unit.
+	2) anche se un raggio non tocca ma passa molto vicino ad un solido, 	piu si avvicina piu i passi che fara saranno piccoli e quindi aumenta il numero di step necessari
 	3) ogni raggio valuta in ogni punto tutte le sdf
 8) Possibili soluzioni:
 	1) pass multipli:
@@ -50,8 +50,10 @@ PRESENTAZIONE:
 	1) riduzione risoluzione:
 	 - diminuzione soglia di hit o overshoot delle distanze
 	 - approssimazione geometria (cached bounding boxes)
-	2) cone marching: 
-	attualmente impossibile perche tutti i fragment sono paralleli, e ogni 	raggio ha un proprio fragment, ma raggi molto vicini potrebbero 	condividere le distanze calcolate 
+	 - ray sorting (compatto i raggi che devono rimbalzare per essere eseguit su una sola wavefront)
+	1) i raggi riflessi ripropongono il problema della frammentazione, quindi  possiamo: usare risuluzione ridotta sempre per i riflessi, attenuare energia raggio esponenzialmente in base al colore del materiale
+	2) cone marching:
+	attualmente impossibile perche tutti i fragment sono paralleli, e ogni 	raggio ha un proprio fragment, ma raggi molto vicini potrebbero 	condividere le distanze calcolate
 	3) partizionamenti spaziali gerarchici:
 	classico partizionamento gerarchico degli spazi, ci permetterebbe 	quindi di valutare solo una parte delle sdf invece che tutte
-
+	3) caching sdf: salvo valori distanze sdf in una texutre 3d, bisogna pero tenere traccia di sdf non costanti
