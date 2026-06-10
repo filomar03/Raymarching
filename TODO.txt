@@ -1,3 +1,2 @@
 implementare:
 rendering multi passo
-partizionamento spaziale
