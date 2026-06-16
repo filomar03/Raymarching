@@ -16,12 +16,18 @@ out vec4 FragColor;
 #define MAX_STEP 3000
 #define MAX_TRAVEL 100
 #define EPSILON 0.001
-#define MAX_BOUNCE 5
+#define MAX_BOUNCE 3
 #define NUDGE 0.01
 
 #define HIT 0
 #define FAR 1
 #define OUT_OF_STEPS 2
+
+#define CRT_EFFECT
+
+#define CEL_SHADING
+#define CEL_SHADING_Q 3
+
 
 // Structs
 struct Light {
@@ -55,10 +61,10 @@ struct HitInfo {
 #define COLOR_LIGHT vec3(1.0, 0.92, 0.75)
 
 #define DIR_LIGHT 99999999
-#define AMBIENT_I 0.15
+#define AMBIENT_I 0.2
 Light lights[] = Light[](
-    Light(vec3(0.0, 0.0, 0.0), true, COLOR_LIGHT, 0.5),
-    Light(normalize(vec3(1.0, 3.0, -1.0)) * DIR_LIGHT, false, COLOR_LIGHT, 0.15)
+    Light(vec3(0.0, 0.0, 0.0), true, COLOR_LIGHT, 0.7),
+    Light(normalize(vec3(1.0, 3.0, -1.0)) * DIR_LIGHT, false, COLOR_LIGHT, 0.25)
 );
 
 #define MAT_BLOCK        0
@@ -417,7 +423,13 @@ vec3 computeSpecular(vec3 p, vec3 norm, vec3 observer_pos, Light l, Material mat
     vec3 l2p_dir = normalize(p - l.position);
     vec3 reflection = reflect(l2p_dir, norm);
     vec3 p2observer_dir = normalize(observer_pos - p);
-    return pow(max(0, dot(reflection, p2observer_dir)), mat.shininess) * l.color * l.intensity;
+    float spec_feature = pow(max(0, dot(reflection, p2observer_dir)), mat.shininess);
+#ifdef CEL_SHADING
+    return floor(spec_feature * l.color * l.intensity * CEL_SHADING_Q) / CEL_SHADING_Q;
+#endif
+#ifndef CEL_SHADING
+    return spec_feature * l.color * l.intensity;
+#endif
 }
 
 vec3 rotate(vec4 q, vec3 p) { // fast formula to rotate a point with a unit quaternion
@@ -496,7 +508,12 @@ void main()
                     }
                 }
 
-                vec3 color = (ambient + diffuse) * mat.color + specular;
+                float local_light = clamp(ambient + diffuse, 0.0, 1.0);
+                #ifdef CEL_SHADING
+                local_light = floor(local_light * CEL_SHADING_Q) / CEL_SHADING_Q;
+                #endif
+
+                vec3 color = local_light * mat.color + specular;
                 final_color += color * absorbtion * ray_energy;
             }
 
@@ -520,5 +537,15 @@ void main()
         }
     }
 
+#ifdef CRT_EFFECT
+    float m = mod(gl_FragCoord.x, 3.0);
+    float r = step(m, 1.0);
+    float g = step(m, 2.0) * step(1.0, m);
+    float b = step(m, 3.0) * step(2.0, m);
+    vec3 crtMask = vec3(r, g, b);
+    FragColor = vec4(final_color * crtMask, 1);
+#endif
+#ifndef CRT_EFFECT
     FragColor = vec4(final_color, 1);
+#endif
 }
