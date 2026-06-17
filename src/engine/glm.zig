@@ -16,6 +16,7 @@ pub fn Vec(dim: usize) type {
         y: f32 = 0,
         z: if (dim >= 3) f32 else void = if (dim >= 3) 0 else {},
         w: if (dim >= 4) f32 else void = if (dim >= 4) 0 else {},
+        dim: usize = dim,
 
         const Self = @This();
 

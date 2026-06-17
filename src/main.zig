@@ -1,16 +1,10 @@
-const std = @import("std");
-const glfw = @import("zglfw");
-const opengl = @import("zopengl");
-const engine = @import("engine/state.zig");
-const glm = @import("engine/glm.zig");
-const zm = @import("zmath");
-
-const Console = engine.ConsoleInterface.Kind;
-
 // Parametri finestra
 const WINDOW_WIDTH = 800;
 const WINDOW_HEIGHT = 800;
 const VSYNC_SETTING = VSYNC_ON;
+
+// Update console
+const DBG_UPDATE_INTERVAL: f32 = 0.5;
 
 // Path shader
 const SHADER_DIR = "src/shaders";
@@ -25,35 +19,28 @@ const INFO_LOG_MAX = 512;
 const OPENGL_MAJOR = 3;
 const OPENGL_MINOR = 3;
 
-// Update console
-const DBG_UPDATE_INTERVAL: f32 = 0.2;
-
 const VSYNC_ON = 1;
 const VSYNC_OFF = 0;
 
+const std = @import("std");
+const glfw = @import("zglfw");
+const opengl = @import("zopengl");
+const engine = @import("engine/state.zig");
+const glm = @import("engine/glm.zig");
+const zm = @import("zmath");
+const sim = @import("simulation.zig");
+
 const gl = opengl.bindings;
+const Console = engine.ConsoleInterface.Kind;
 
-var state: engine.State = .{};
+const state = &engine.state;
 
-pub fn main() !void {
-    // Allocator & Console
-    var gpa: std.heap.DebugAllocator(.{}) = .init;
-    const allocator = gpa.allocator();
-
-    var buf: [64]u8 = undefined;
-    state.console.init(Console.STDOUT, &buf);
-    var console = state.console.writer(Console.STDOUT);
-
-    // GLFW & Context init
-    try glfw.init();
-    defer glfw.terminate();
-
+fn createWindow(title: [:0]const u8) !*glfw.Window {
     glfw.windowHint(glfw.WindowHint.context_version_major, OPENGL_MAJOR);
     glfw.windowHint(glfw.WindowHint.context_version_minor, OPENGL_MINOR);
     glfw.windowHint(glfw.WindowHint.opengl_profile, glfw.OpenGLProfile.opengl_core_profile);
 
-    const window = try glfw.createWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Raymarching demo", null, null);
-    defer window.destroy();
+    const window = try glfw.createWindow(WINDOW_WIDTH, WINDOW_HEIGHT, title, null, null);
 
     glfw.makeContextCurrent(window);
     glfw.swapInterval(VSYNC_SETTING);
@@ -73,52 +60,69 @@ pub fn main() !void {
         try glfw.setInputMode(window, glfw.InputMode.raw_mouse_motion, true);
     }
 
-    // Load shaders
+    return window;
+}
+
+const VERT_SIZE = 3;
+const canvas = [_]gl.Float{
+    -1.0, -1.0, -1.0,
+    -1.0,  1.0, -1.0,
+     1.0,  1.0, -1.0,
+
+    -1.0, -1.0, -1.0,
+     1.0,  1.0, -1.0,
+     1.0, -1.0, -1.0,
+};
+
+fn setupCanvas(vbo: [*c]gl.Uint, vao: [*c]gl.Uint) void {
+    gl.genBuffers(1, vbo);
+    gl.genVertexArrays(1, vao);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, vbo.*);
+    gl.bindVertexArray(vao.*);
+
+    gl.bufferData(gl.ARRAY_BUFFER, @sizeOf(@TypeOf(canvas)), &canvas, gl.STATIC_DRAW);
+
+    gl.vertexAttribPointer(0, VERT_SIZE, gl.FLOAT, gl.FALSE, @sizeOf([VERT_SIZE]gl.Float), @ptrFromInt(0));
+    gl.enableVertexAttribArray(0);
+}
+
+const Shaders = struct {
+    vertex: [:0]const u8,
+    fragment: [:0]const u8,
+};
+
+fn loadShaders(allocator: std.mem.Allocator) !Shaders {
     var shader_dir = try std.fs.cwd().openDir(SHADER_DIR, .{});
     defer shader_dir.close();
-
-    const vert_src = try shader_dir.readFileAllocOptions(allocator, VERTEX_SHADER_FILE, MAX_SHADER_SIZE, null, .of(u8), 0);
-    defer allocator.free(vert_src);
-
-    const frag_src = try shader_dir.readFileAllocOptions(allocator, FRAGMENT_SHADER_FILE, MAX_SHADER_SIZE, null, .of(u8), 0);
-    defer allocator.free(frag_src);
-
-    // Setup pipeline
-    const VERT_VEC_SIZE = 3;
-    const vertices = [_]gl.Float{
-        -1.0, -1.0, -1.0,
-        -1.0,  1.0, -1.0,
-         1.0,  1.0, -1.0,
-
-        -1.0, -1.0, -1.0,
-         1.0,  1.0, -1.0,
-         1.0, -1.0, -1.0,
+    return .{
+        .vertex = try shader_dir.readFileAllocOptions(
+            allocator,
+            VERTEX_SHADER_FILE,
+            MAX_SHADER_SIZE,
+            null,
+            .of(u8),
+            0
+        ),
+        .fragment = try shader_dir.readFileAllocOptions(
+            allocator,
+            FRAGMENT_SHADER_FILE,
+            MAX_SHADER_SIZE,
+            null,
+            .of(u8),
+            0
+        ),
     };
+}
 
-    var vbo: gl.Uint = undefined;
-    var vao: gl.Uint = undefined;
-
-    gl.genBuffers(1, @ptrCast(&vbo));
-    gl.genVertexArrays(1, @ptrCast(&vao));
-
-    defer gl.deleteBuffers(1, @ptrCast(&vbo));
-    defer gl.deleteVertexArrays(1, @ptrCast(&vao));
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
-    gl.bindVertexArray(vao);
-
-    gl.bufferData(gl.ARRAY_BUFFER, @sizeOf(@TypeOf(vertices)), &vertices, gl.STATIC_DRAW);
-
-    gl.vertexAttribPointer(0, VERT_VEC_SIZE, gl.FLOAT, gl.FALSE, @sizeOf([VERT_VEC_SIZE]gl.Float), @ptrFromInt(0));
-    gl.enableVertexAttribArray(0);
+fn setupPipeline(shaders: Shaders, window: *glfw.Window) !void {
+    var stderr = state.console.writer(Console.STDERR);
 
     const vert_shad = gl.createShader(gl.VERTEX_SHADER);
-    defer gl.deleteShader(vert_shad);
     const frag_shad = gl.createShader(gl.FRAGMENT_SHADER);
-    defer gl.deleteShader(frag_shad);
 
-    gl.shaderSource(vert_shad, 1, @ptrCast(&vert_src), null);
-    gl.shaderSource(frag_shad, 1, @ptrCast(&frag_src), null);
+    gl.shaderSource(vert_shad, 1, @ptrCast(&shaders.vertex), null);
+    gl.shaderSource(frag_shad, 1, @ptrCast(&shaders.fragment), null);
 
     var info_log: [INFO_LOG_MAX:0]u8 = undefined;
     var log_len: c_int = undefined;
@@ -128,8 +132,8 @@ pub fn main() !void {
     gl.getShaderiv(vert_shad, gl.COMPILE_STATUS, &shader_compiled);
     if (shader_compiled != gl.TRUE) {
         gl.getShaderInfoLog(vert_shad, INFO_LOG_MAX, @ptrCast(&log_len), @ptrCast(&info_log));
-        try console.print("[Vertex shader compilation] {s}", .{info_log[0..@intCast(log_len)]});
-        try console.flush();
+        try stderr.print("[Vertex shader] {s}", .{info_log[0..@intCast(log_len)]});
+        try stderr.flush();
         return;
     }
 
@@ -137,13 +141,12 @@ pub fn main() !void {
     gl.getShaderiv(frag_shad, gl.COMPILE_STATUS, &shader_compiled);
     if (shader_compiled != gl.TRUE) {
         gl.getShaderInfoLog(frag_shad, INFO_LOG_MAX, @ptrCast(&log_len), @ptrCast(&info_log));
-        try console.print("[Fragment shader compilation] {s}", .{info_log[0..@intCast(log_len)]});
-        try console.flush();
+        try stderr.print("[Fragment shader] {s}", .{info_log[0..@intCast(log_len)]});
+        try stderr.flush();
         return;
     }
 
     const program = gl.createProgram();
-    defer gl.deleteProgram(program);
 
     gl.attachShader(program, vert_shad);
     gl.attachShader(program, frag_shad);
@@ -154,31 +157,72 @@ pub fn main() !void {
     gl.getProgramiv(program, gl.LINK_STATUS, &program_linked);
     if (program_linked != gl.TRUE) {
         gl.getProgramInfoLog(program, INFO_LOG_MAX, @ptrCast(&log_len), @ptrCast(&info_log));
-        try console.print("[Program linking] {s}", .{info_log[0..@intCast(log_len)]});
-        try console.flush();
+        try stderr.print("[Shader program] {s}", .{info_log[0..@intCast(log_len)]});
+        try stderr.flush();
         return;
     }
 
     gl.useProgram(program);
 
-    const shader_interface: engine.ShaderInterface = .{ .program = &program, .uniforms = .{
+    state.opengl.shader = .{
+        .vertex = vert_shad,
+        .fragment = frag_shad,
+        .program = program,
+    };
+
+    state.opengl.uniforms = .{
         .resolution = gl.getUniformLocation(program, "uResolution"),
         .time = gl.getUniformLocation(program, "uTime"),
         .cam_fov = gl.getUniformLocation(program, "uFov"),
         .cam_pos = gl.getUniformLocation(program, "uCamPos"),
         .cam_rot = gl.getUniformLocation(program, "uCamRot"),
         .crank_angle = gl.getUniformLocation(program, "uCrankAngle"),
-    } };
+    };
+    const uniforms = &state.opengl.uniforms.?;
 
-    state.shader = shader_interface;
+    var fb_width: c_int = undefined;
+    var fb_height: c_int = undefined;
+    glfw.getFramebufferSize(window, &fb_width, &fb_height);
 
-    gl.uniform2f(shader_interface.uniforms.resolution, @floatFromInt(fb_width), @floatFromInt(fb_height));
-    gl.uniform1f(shader_interface.uniforms.cam_fov, state.camera.fov);
-    gl.uniform3fv(shader_interface.uniforms.cam_pos, 1, &state.camera.position.toArray());
+    gl.uniform2f(uniforms.resolution, @floatFromInt(fb_width), @floatFromInt(fb_height));
+    gl.uniform1f(uniforms.cam_fov, state.camera.fov);
+    gl.uniform3fv(uniforms.cam_pos, 1, &state.camera.position.toArray());
+}
 
+pub fn main() !void {
+    var gpa: std.heap.DebugAllocator(.{}) = .init;
+    const allocator = gpa.allocator();
+
+    var stdout_buf: [64]u8 = undefined;
+    var stderr_buf: [64]u8 = undefined;
+    state.console.init(Console.STDOUT, &stdout_buf);
+    state.console.init(Console.STDERR, &stderr_buf);
+    var stdout = state.console.writer(Console.STDOUT);
+
+    try glfw.init();
+    defer glfw.terminate();
+
+    const window = try createWindow("Raymarching demo");
+    defer window.destroy();
+
+    var vbo: gl.Uint = undefined;
+    var vao: gl.Uint = undefined;
+    setupCanvas(@ptrCast(&vbo), @ptrCast(&vao));
+    defer gl.deleteBuffers(1, @ptrCast(&vbo));
+    defer gl.deleteVertexArrays(1, @ptrCast(&vao));
+
+    const shaders = try loadShaders(allocator);
+    defer allocator.free(shaders.vertex);
+    defer allocator.free(shaders.fragment);
+
+    try setupPipeline(shaders, window);
+    const shader = &state.opengl.shader.?;
+    defer gl.deleteShader(shader.vertex);
+    defer gl.deleteShader(shader.fragment);
+    defer gl.deleteProgram(shader.program);
+
+    const uniform = &state.opengl.uniforms.?;
     var last_dbg_update: f32 = 0;
-
-    // Render loop
     while (!window.shouldClose()) {
         const now = @as(f32, @floatCast(glfw.getTime()));
         state.dt = now - state.now;
@@ -187,17 +231,19 @@ pub fn main() !void {
         glfw.pollEvents();
         getInput(window);
 
-        gl.uniform1f(shader_interface.uniforms.time, now);
-        gl.drawArrays(gl.TRIANGLES, 0, vertices.len / VERT_VEC_SIZE);
+        gl.uniform1f(uniform.time, now);
+        gl.drawArrays(gl.TRIANGLES, 0, canvas.len / VERT_SIZE);
         window.swapBuffers();
 
         state.debug.performance.addFrametime(state.dt);
         if (now - last_dbg_update >= DBG_UPDATE_INTERVAL) {
             last_dbg_update = now;
-            try console.print("\x1b[2J\x1b[HFPS: {:.0}\n", .{1 / state.debug.performance.getAvgFrameTime()});
-            try console.print("SPEED: {} {} {}\n", .{cam_speed.x, cam_speed.y, cam_speed.z});
-            try console.print("RPM: {}\n", .{@as(u32, @intFromFloat(state.simulation.rpm))});
-            try console.flush();
+            try stdout.print("\x1b[2J\x1b[H", .{});
+            try stdout.print("FPS: {:.0}\n", .{1 / state.debug.performance.getAvgFrameTime()});
+            try stdout.print("FOV: {:.0}\n", .{state.camera.fov});
+            try stdout.print("SPEED: {:.1} {:.1} {:.1}\n", .{cam_speed.x, cam_speed.y, cam_speed.z});
+            try stdout.print("RPM: {:.0}\n", .{@as(u32, @intFromFloat(state.simulation.rpm))});
+            try stdout.flush();
         }
     }
 }
@@ -206,58 +252,12 @@ pub fn main() !void {
 fn getInput(window: *glfw.Window) void {
     moveCamera(window);
     rotateCamera(window);
-    modifyRpm(window);
+    sim.modifyRpm(window);
     detectQuit(window);
 }
 
-const CAM_SENS = 0.002;
 const CAM_SPEED_DEF = glm.Vec3{ .x = 7.5, .y = 3, .z = 7.5 };
 var cam_speed = CAM_SPEED_DEF;
-const CAM_SPEED_MOD: f32 = 1.0 / 32.0;
-var cam_speed_mod: f32 = 1;
-
-const NEAR_SENS = 7;
-const NEAR_MIN = 0.1;
-const NEAR_MAX = 100;
-
-const FOV_SENS = 1;
-const FOV_MIN = 30;
-const FOV_MAX = 120;
-
-const Y_AXIS: glm.Vec3 = .{
-    .x = 0,
-    .y = 1,
-    .z = 0,
-};
-
-const X_AXIS: glm.Vec3 = .{
-    .x = 1,
-    .y = 0,
-    .z = 0,
-};
-
-fn modifyRpm(window: *glfw.Window) void {
-    var sim = &state.simulation;
-
-    if (glfw.getMouseButton(window, glfw.MouseButton.right) == glfw.Action.press) {
-        sim.rpm = std.math.clamp(sim.rpm - std.math.pow(f32, sim.decel_rate, 1) * state.dt, 0, sim.limiter);
-    }
-
-    if (glfw.getMouseButton(window, glfw.MouseButton.left) == glfw.Action.press) {
-        sim.rpm = std.math.clamp(sim.rpm + sim.accel_rate * state.dt, 0, sim.limiter);
-    } else {
-        if (sim.rpm >= sim.idle) {
-            sim.rpm = std.math.clamp(sim.rpm - sim.decel_rate * state.dt, sim.idle, sim.limiter);
-        } else {
-            sim.rpm = std.math.clamp(sim.rpm - sim.decel_rate * state.dt, 0, sim.idle);
-        }
-    }
-
-    sim.crank_angle += sim.rpm * (state.dt / 60.0);
-
-    const shader_angle = @as(f32, @floatCast(@mod(sim.crank_angle, std.math.pi * 2)));
-    gl.uniform1f(state.shader.?.uniforms.crank_angle, shader_angle);
-}
 
 fn moveCamera(window: *glfw.Window) void {
     const forward: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.w) == glfw.Action.press));
@@ -273,12 +273,26 @@ fn moveCamera(window: *glfw.Window) void {
 
     var pos = &state.camera.position;
     pos.* = pos.sum(cam_forward.mul(cam_speed).mul(state.dt));
-    const shader = state.shader orelse return;
-    gl.uniform3fv(shader.uniforms.cam_pos, 1, &state.camera.position.toArray());
+    const uniforms = &(state.opengl.uniforms orelse return);
+    gl.uniform3fv(uniforms.cam_pos, 1, &state.camera.position.toArray());
 }
 
 var prev_mx: f64 = 0;
 var prev_my: f64 = 0;
+
+const CAM_SENS = 0.002;
+
+pub const Y_AXIS: glm.Vec3 = .{
+    .x = 0,
+    .y = 1,
+    .z = 0,
+};
+
+pub const X_AXIS: glm.Vec3 = .{
+    .x = 1,
+    .y = 0,
+    .z = 0,
+};
 
 fn rotateCamera(window: *glfw.Window) void {
     var mx: f64 = undefined;
@@ -289,7 +303,7 @@ fn rotateCamera(window: *glfw.Window) void {
     const dmy = @as(f32, @floatCast(my - prev_my));
 
     const rot = &state.camera.rotation;
-    const shader = state.shader orelse return;
+    const uniforms = &(state.opengl.uniforms orelse return);
 
     const y_angle = dmx * CAM_SENS;
     const y_rot = glm.Quaternion.fromAxis(Y_AXIS, y_angle);
@@ -301,21 +315,11 @@ fn rotateCamera(window: *glfw.Window) void {
 
     rot.* = x_rot.mul(rot.*).normalize(); // normalize to stop errors from propagating through frames
 
-    gl.uniform4f(shader.uniforms.cam_rot, rot.*.i, rot.*.j, rot.*.k, rot.*.w);
+    gl.uniform4f(uniforms.cam_rot, rot.*.i, rot.*.j, rot.*.k, rot.*.w);
 
     prev_mx = mx;
     prev_my = my;
 }
-
-// UNUSED (for now)
-// fn adjustCamNear(window: *glfw.Window) void {
-//     const up_arrow: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.up) == glfw.Action.press));
-//     const down_arrow: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.down) == glfw.Action.press));
-
-//     const shader = state.shader orelse return;
-//     state.camera.near = std.math.clamp(state.camera.near + (up_arrow - down_arrow) * NEAR_SENS * state.dt, NEAR_MIN, NEAR_MAX);
-//     gl.uniform1f(shader.uniforms.cam_near, state.camera.near);
-// }
 
 fn detectQuit(window: *glfw.Window) void {
     if (glfw.getKey(window, glfw.Key.escape) == glfw.Action.press) {
@@ -323,11 +327,16 @@ fn detectQuit(window: *glfw.Window) void {
     }
 }
 
+const FOV_SENS: f32 = 1.0;
+
 fn adjustCamFov(scroll: f32) void {
-    const shader = state.shader orelse return;
-    state.camera.fov = std.math.clamp(state.camera.fov + -scroll * FOV_SENS, FOV_MIN, FOV_MAX);
-    gl.uniform1f(shader.uniforms.cam_fov, state.camera.fov);
+    const uniforms = &(state.opengl.uniforms orelse return);
+    state.camera.setFOV(state.camera.fov + -scroll * FOV_SENS);
+    gl.uniform1f(uniforms.cam_fov, state.camera.fov);
 }
+
+const CAM_SPEED_MOD_DEF: f32 = 0.25;
+var cam_speed_mod: f32 = 1.0;
 
 fn scrollCallback(window: *glfw.Window, x_offset: f64, y_offset: f64) callconv(.c) void {
     _ = x_offset;
@@ -336,16 +345,15 @@ fn scrollCallback(window: *glfw.Window, x_offset: f64, y_offset: f64) callconv(.
     if (glfw.getKey(window, glfw.Key.left_control) == glfw.Action.press) {
         adjustCamFov(scroll);
     } else {
-        cam_speed_mod = std.math.clamp(cam_speed_mod + scroll * CAM_SPEED_MOD, 0.1, 10.0);
+        cam_speed_mod = std.math.clamp(cam_speed_mod + scroll * CAM_SPEED_MOD_DEF, 0.1, 10.0);
         cam_speed = CAM_SPEED_DEF.mul(cam_speed_mod);
     }
-
 }
 
 fn fbResizeCallback(window: *glfw.Window, width: c_int, height: c_int) callconv(.c) void {
     _ = window;
 
-    const shader = state.shader orelse return;
-    gl.uniform2f(shader.uniforms.resolution, @floatFromInt(width), @floatFromInt(height));
+    const uniforms = &(state.opengl.uniforms orelse return);
+    gl.uniform2f(uniforms.resolution, @floatFromInt(width), @floatFromInt(height));
     gl.viewport(0, 0, width, height);
 }

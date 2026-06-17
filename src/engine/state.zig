@@ -1,15 +1,17 @@
 const std = @import("std");
 const glm = @import("glm.zig");
+const glfw = @import("zglfw");
+const sim = @import("../simulation.zig");
+
+pub var state: State = .{};
 
 pub const State = struct {
     console: ConsoleInterface = .{},
-    shader: ?ShaderInterface = null,
+    opengl: OpenGL = .{},
     camera: CameraObject = .{},
     now: f32 = 0,
     dt: f32 = 0,
-    simulation: SimulState = .{},
-    rpm: f32 = 0,
-    crank_angle: f32 = 0,
+    simulation: sim.SimulState = .{},
     debug: DebugInfo = .{},
 };
 
@@ -39,9 +41,15 @@ pub const ConsoleInterface = struct {
     }
 };
 
-pub const ShaderInterface = struct {
-    program: *const c_uint,
-    uniforms: UniformLocations,
+pub const OpenGL = struct {
+    shader: ?ShaderInfo = null,
+    uniforms: ?UniformLocations = null,
+
+    const ShaderInfo = struct {
+        vertex: c_uint,
+        fragment: c_uint,
+        program: c_uint,
+    };
 
     const UniformLocations = struct {
         resolution: c_int,
@@ -54,11 +62,19 @@ pub const ShaderInterface = struct {
 };
 
 const CAM_DEF_FOV = 60;
+pub const FOV_MIN = 30;
+pub const FOV_MAX = 120;
 
 pub const CameraObject = struct {
     fov: f32 = CAM_DEF_FOV,
     position: glm.Vec3 = .{},
     rotation: glm.Quaternion = .{},
+
+    const Self = @This();
+
+    pub fn setFOV(self: *Self, fov: f32) void {
+        self.fov = std.math.clamp(fov, FOV_MIN, FOV_MAX);
+    }
 };
 
 
@@ -85,16 +101,4 @@ pub const PerfInfo = struct {
     pub fn getAvgFrameTime(self: Self) f32 {
         return self.frametimes_sum / FRAMETIME_RBUF_DIM;
     }
-};
-
-const LIMITER = 7000;
-const IDLE = 800;
-
-pub const SimulState = struct {
-    rpm: f32 = 0,
-    crank_angle: f64 = 0,
-    idle: f32 = IDLE,
-    limiter: f32 = LIMITER,
-    decel_rate: f32 = (LIMITER - IDLE) / 5.0,
-    accel_rate: f32 = 1000,
 };
