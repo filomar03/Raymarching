@@ -327,7 +327,21 @@ pub fn main() !void {
     }
 }
 
-// Input handling
+fn updateUniforms(uniforms: engine.OpenGL.UniformLocations) void {
+    gl.uniform1f(uniforms.time, state.now);
+    gl.uniform3fv(uniforms.cam_pos, 1, &state.camera.position.toArray());
+    const rot = &state.camera.rotation;
+    gl.uniform4f(uniforms.cam_rot, rot.*.i, rot.*.j, rot.*.k, rot.*.w);
+    gl.uniform1f(uniforms.cam_fov, state.camera.fov);
+    const res: [2]f32 = .{ // TODO: aggiustare risoluzione in base al passo
+        state.opengl.pipeline.?.viewport[0],
+        state.opengl.pipeline.?.viewport[1],
+    };
+    gl.uniform2fv(uniforms.resolution, 1, @ptrCast(&res));
+    const shader_angle = @as(f32, @floatCast(@mod(sim.crank_angle, std.math.pi * 2)));
+    gl.uniform1f(uniforms.crank_angle, shader_angle);
+}
+
 fn getInput(window: *glfw.Window) void {
     moveCamera(window);
     rotateCamera(window);

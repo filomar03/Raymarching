@@ -37,8 +37,4 @@ pub fn modifyRpm(window: *glfw.Window) void {
     }
 
     sim.crank_angle += sim.rpm * (state.dt / 60.0);
-
-    const shader_angle = @as(f32, @floatCast(@mod(sim.crank_angle, std.math.pi * 2)));
-    gl.uniform1f(state.opengl.uniforms.?[0].crank_angle, shader_angle);
-    gl.uniform1f(state.opengl.uniforms.?[1].crank_angle, shader_angle);
 }
