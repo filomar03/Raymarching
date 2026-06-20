@@ -1,9 +1,5 @@
 implementare:
-aggiornare tutti gli uniform
-creare oggetti correttamente
-creare altro fb e texture
-fare sample texture in 2nd pass
-rimuovere optional inutili
+aggiornare uniform in funzione apposita
 rendering multi passo
 migliorare errori e gestione
 UBO
