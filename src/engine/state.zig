@@ -42,13 +42,15 @@ pub const ConsoleInterface = struct {
 };
 
 pub const OpenGL = struct {
-    shader: ?ShaderInfo = null,
-    uniforms: ?UniformLocations = null,
+    pipeline: ?PipelineInfo = null,
+    uniforms: ?[2]UniformLocations = null,
 
-    const ShaderInfo = struct {
+    const PipelineInfo = struct {
         vertex: c_uint,
-        fragment: c_uint,
-        program: c_uint,
+        fragment: [2]c_uint,
+        program: [2]c_uint,
+        alt_fb: c_uint,
+        viewport: [2]c_int,
     };
 
     const UniformLocations = struct {

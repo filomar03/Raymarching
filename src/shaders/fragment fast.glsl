@@ -9,79 +9,13 @@ uniform vec4 uCamRot;
 uniform float uCrankAngle;
 
 // Shader output
-out vec4 FragColor;
+out float FragColor;
 
 // Rendering params
-#define HIT_DISTANCE 0.0001
+#define HIT_DISTANCE 0.01
 #define MAX_STEP 3000
 #define MAX_TRAVEL 100.0
-#define EPSILON 0.001
-#define MAX_BOUNCE 3
 #define NUDGE 0.01
-
-#define HIT 0
-#define FAR 1
-#define OUT_OF_STEPS 2
-
-#define CRT_EFFECT
-
-#define CEL_SHADING
-#define CEL_SHADING_Q 3
-
-
-// Structs
-struct Light {
-    vec3 position;
-    bool follow_cam;
-    vec3 color;
-    float intensity;
-};
-
-struct Material {
-    vec3 color;
-    float shininess;
-    float reflectivity;
-};
-
-struct SceneInfo {
-    float distance;
-    int mat_index;
-};
-
-struct HitInfo {
-    int reason;
-    float travel;
-    int mat_index;
-};
-
-// Scene constants
-#define COLOR_OUT_OF_STEP COLOR_SKY_BOX
-// #define COLOR_OUT_OF_STEP vec3(0, 1, 0)
-#define COLOR_SKY_BOX vec3(213, 227, 229) / 255.0
-#define COLOR_LIGHT vec3(1.0, 0.92, 0.75)
-
-#define DIR_LIGHT 99999999
-#define AMBIENT_I 0.2
-Light lights[] = Light[](
-    Light(vec3(0.0, 0.0, 0.0), true, COLOR_LIGHT, 0.7),
-    Light(normalize(vec3(1.0, 3.0, -1.0)) * DIR_LIGHT, false, COLOR_LIGHT, 0.25)
-);
-
-#define MAT_BLOCK        0
-#define MAT_PISTON       1
-#define MAT_CONROD       2
-#define MAT_CRANKSHAFT   3
-#define MAT_RINGS        4
-#define MAT_GEARS        5
-
-Material mats[] = Material[](
-    Material(vec3(0.28, 0.29, 0.31), 0, 0.01),
-    Material(vec3(0.85, 0.86, 0.88), 2048, 0.25),
-    Material(vec3(0.42, 0.39, 0.37), 16, 0.15),
-    Material(vec3(0.50, 0.51, 0.53), 32, 0.03),
-    Material(vec3(0.12, 0.12, 0.13), 16, 0.05),
-    Material(vec3(0.45, 0.46, 0.45), 16, 0.15)
-);
 
 // Shape operations
 float opUnion(float a, float b) {
@@ -126,12 +60,6 @@ float opExtrusion(vec3 p, float sdf2d, float h) {
 float opRound(float sdf, float r) {
     return sdf - r;
 }
-
-// float opRepetition( in vec3 p, in vec3 s, in sdf3d primitive )
-// {
-//     vec3 q = p - s*round(p/s);
-//     return primitive( q );
-// }
 
 // SDFs (formule prese da: https://iquilezles.org/articles/distfunctions/)
 float sdSphere(vec3 center, float radius) {
@@ -193,7 +121,7 @@ float sdGear(vec3 p, float r, float w, float teeth, float td, float angle) {
 
     vec2 d = vec2(length(p2) - r_mod, abs(p.z) - w);          // ===| extrude and compute distance
     float ed = min(max(d.x, d.y), 0.0) + length(max(d, 0.0)); // ===|
-    return ed * 0.8; // ==| reduces distance since it can overshoot, r_mod is radial distance not euclidean distance
+    return ed * 0.8; // ===| reduces distance since it can overshoot, r_mod is radial distance not euclidean distance
 }
 
 #define X vec3(1.0, 0.0, 0.0)
@@ -274,7 +202,7 @@ void computeFrameValues() {
     }
 }
 
-SceneInfo map(vec3 p) {
+float map(vec3 p) {
     vec3 engine_pos = p - abs_eng_position;
 
     // DUPLICATE PARTS
@@ -382,83 +310,44 @@ SceneInfo map(vec3 p) {
     vec3 section_pos = engine_pos - vec3(MAX_TRAVEL, 0, 0);
     float d_section = sdBox(section_pos, vec3(MAX_TRAVEL));
 
-    SceneInfo scene = SceneInfo(d_pistons, MAT_PISTON);
+    float scene = MAX_TRAVEL;
 
-    if (d_block < scene.distance) scene.mat_index = MAT_BLOCK;
-    scene.distance = opUnion(scene.distance, d_block);
-
-    if (d_conrods < scene.distance) scene.mat_index = MAT_CONROD;
-    scene.distance = opUnion(scene.distance, d_conrods);
-
-    if (d_rings < scene.distance) scene.mat_index = MAT_RINGS;
-    scene.distance = opUnion(scene.distance, d_rings);
-
-    if (d_cranks < scene.distance) scene.mat_index = MAT_CRANKSHAFT;
-    scene.distance = opUnion(scene.distance, d_cranks);
-
-    if (d_timing_gear < scene.distance) scene.mat_index = MAT_GEARS;
-    scene.distance = opUnion(scene.distance, d_timing_gear);
+    scene = opUnion(scene, d_block);
+    scene = opUnion(scene, d_conrods);
+    scene = opUnion(scene, d_rings);
+    scene = opUnion(scene, d_cranks);
+    scene = opUnion(scene, d_timing_gear);
 
     return scene;
-}
-
-vec3 approx_norm(vec3 p) {
-    vec2 h = vec2(EPSILON, 0.0);
-
-    // central difference gradient
-    float dx = map(p + h.xyy).distance - map(p - h.xyy).distance;
-    float dy = map(p + h.yxy).distance - map(p - h.yxy).distance;
-    float dz = map(p + h.yyx).distance - map(p - h.yyx).distance;
-
-    vec3 norm = normalize(vec3(dx, dy, dz));
-    return norm;
-}
-
-float computeDiffuse(vec3 p, vec3 norm, Light l) { // Lambert model
-    vec3 p2l_dir = normalize(l.position - p);
-    return max(0, dot(norm, p2l_dir)) * l.intensity;
-}
-
-vec3 computeSpecular(vec3 p, vec3 norm, vec3 observer_pos, Light l, Material mat) { // Phong model
-    vec3 l2p_dir = normalize(p - l.position);
-    vec3 reflection = reflect(l2p_dir, norm);
-    vec3 p2observer_dir = normalize(observer_pos - p);
-    float spec_feature = pow(max(0, dot(reflection, p2observer_dir)), mat.shininess);
-#ifdef CEL_SHADING
-    return floor(spec_feature * l.color * l.intensity * CEL_SHADING_Q) / CEL_SHADING_Q;
-#endif
-#ifndef CEL_SHADING
-    return spec_feature * l.color * l.intensity;
-#endif
 }
 
 vec3 rotate(vec4 q, vec3 p) { // fast formula to rotate a point with a unit quaternion
     return p + 2 * q.w * cross(q.xyz, p) + 2 * cross(q.xyz, cross(q.xyz, p));
 }
 
-HitInfo rayMarch(vec3 starting_point, vec3 ray, float start_travel, int start_step) {
+float rayMarch(vec3 starting_point, vec3 ray, float start_travel, int start_step) {
     vec3 p = starting_point;
     float travel = start_travel;
     int step = start_step;
 
     while (step < MAX_STEP) {
-        SceneInfo scene = map(p);
+        float scene = map(p);
 
-        travel += scene.distance;
-        p += ray * scene.distance;
+        travel += scene;
+        p += ray * scene;
 
-        if (scene.distance <= HIT_DISTANCE) {
-            return HitInfo(HIT, travel, scene.mat_index);
+        if (scene <= HIT_DISTANCE) {
+            return travel;
         }
 
         if (travel > MAX_TRAVEL) {
-            return HitInfo(FAR, travel, scene.mat_index);
+            return MAX_TRAVEL;
         }
 
         step += 1;
     }
 
-    return HitInfo(OUT_OF_STEPS, travel, -1);
+    return travel;
 }
 
 void main()
@@ -473,79 +362,6 @@ void main()
     vec3 ray = normalize(rotate(uCamRot, vec3(uv, 1))); // near is set to 1, since changing it doesn't affect the rendering (for now)
     vec3 observer_position = uCamPos;
 
-    float ray_energy = 1.0;
-    vec3 final_color;
-
     computeFrameValues();
-    for (int bounce = 0; bounce < MAX_BOUNCE; bounce++) {
-        HitInfo hit = rayMarch(p, ray, 0, 0);
-        p += ray * hit.travel;
-
-        if (hit.reason == HIT) {
-            vec3 norm = approx_norm(p);
-            Material mat = mats[hit.mat_index];
-
-            float absorbtion = 1.0 - mat.reflectivity;
-            if (bounce == MAX_BOUNCE - 1) {
-                absorbtion = 1.0;
-            }
-
-            if (mat.reflectivity < 1.0) {
-                float ambient = AMBIENT_I;
-                float diffuse = 0.0;
-                vec3 specular = vec3(0);
-
-                for (int i = 0; i < lights.length(); i++) {
-                    Light l = lights[i];
-
-                    if (l.follow_cam) {
-                        l.position += uCamPos;
-                    }
-
-                    diffuse += computeDiffuse(p, norm, l);
-                    if (mat.shininess > 0) {
-                        specular += computeSpecular(p, norm, observer_position, l, mat);
-                    }
-                }
-
-                float local_light = clamp(ambient + diffuse, 0.0, 1.0);
-                #ifdef CEL_SHADING
-                local_light = floor(local_light * CEL_SHADING_Q) / CEL_SHADING_Q;
-                #endif
-
-                vec3 color = local_light * mat.color + specular;
-                final_color += color * absorbtion * ray_energy;
-            }
-
-            if (mat.reflectivity > 0.0) {
-                ray = normalize(reflect(ray, norm));
-                observer_position = p;
-                p += ray * NUDGE;
-
-                ray_energy *= mat.reflectivity;
-            } else {
-                break;
-            }
-        }
-        else if (hit.reason == FAR) {
-            final_color += COLOR_SKY_BOX * ray_energy;
-            break;
-        }
-        else if (hit.reason == OUT_OF_STEPS) {
-            final_color += COLOR_OUT_OF_STEP * ray_energy;
-            break;
-        }
-    }
-
-#ifdef CRT_EFFECT
-    float m = mod(gl_FragCoord.x, 3.0);
-    float r = step(m, 1.0);
-    float g = step(m, 2.0) * step(1.0, m);
-    float b = step(m, 3.0) * step(2.0, m);
-    vec3 crtMask = vec3(r, g, b);
-    FragColor = vec4(final_color * crtMask, 1);
-#endif
-#ifndef CRT_EFFECT
-    FragColor = vec4(final_color, 1);
-#endif
+    FragColor = rayMarch(p, ray, 0, 0);
 }

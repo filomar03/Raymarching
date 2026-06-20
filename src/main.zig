@@ -1,3 +1,6 @@
+// Parametri rendering
+const RES_REDUCTION = 1.0 / 3.0;
+
 // Parametri finestra
 const WINDOW_WIDTH = 800;
 const WINDOW_HEIGHT = 800;
@@ -9,7 +12,8 @@ const DBG_UPDATE_INTERVAL: f32 = 0.5;
 // Path shader
 const SHADER_DIR = "src/shaders";
 const VERTEX_SHADER_FILE = "vertex.glsl";
-const FRAGMENT_SHADER_FILE = "fragment.glsl";
+const PASS1_SHADER_FILE = "fragment fast.glsl";
+const PASS2_SHADER_FILE = "frag2 test.glsl";
 
 // Parametri shader
 const MAX_SHADER_SIZE = 1024 * 1024; // 1 Mib
@@ -32,6 +36,7 @@ const sim = @import("simulation.zig");
 
 const gl = opengl.bindings;
 const Console = engine.ConsoleInterface.Kind;
+const assert = std.debug.assert;
 
 const state = &engine.state;
 
@@ -46,11 +51,6 @@ fn createWindow(title: [:0]const u8) !*glfw.Window {
     glfw.swapInterval(VSYNC_SETTING);
 
     try opengl.loadCoreProfile(glfw.getProcAddress, OPENGL_MAJOR, OPENGL_MINOR);
-
-    var fb_width: c_int = undefined;
-    var fb_height: c_int = undefined;
-    glfw.getFramebufferSize(window, &fb_width, &fb_height);
-    gl.viewport(0, 0, fb_width, fb_height);
 
     _ = glfw.setFramebufferSizeCallback(window, &fbResizeCallback);
     _ = glfw.setScrollCallback(window, &scrollCallback);
@@ -73,7 +73,6 @@ const canvas = [_]gl.Float{
      1.0,  1.0, -1.0,
      1.0, -1.0, -1.0,
 };
-
 fn setupCanvas(vbo: [*c]gl.Uint, vao: [*c]gl.Uint) void {
     gl.genBuffers(1, vbo);
     gl.genVertexArrays(1, vao);
@@ -89,104 +88,155 @@ fn setupCanvas(vbo: [*c]gl.Uint, vao: [*c]gl.Uint) void {
 
 const Shaders = struct {
     vertex: [:0]const u8,
-    fragment: [:0]const u8,
+    fragment: [2][:0]const u8,
 };
-
 fn loadShaders(allocator: std.mem.Allocator) !Shaders {
     var shader_dir = try std.fs.cwd().openDir(SHADER_DIR, .{});
     defer shader_dir.close();
     return .{
-        .vertex = try shader_dir.readFileAllocOptions(
-            allocator,
-            VERTEX_SHADER_FILE,
-            MAX_SHADER_SIZE,
-            null,
-            .of(u8),
-            0
-        ),
-        .fragment = try shader_dir.readFileAllocOptions(
-            allocator,
-            FRAGMENT_SHADER_FILE,
-            MAX_SHADER_SIZE,
-            null,
-            .of(u8),
-            0
-        ),
+        .vertex = try shader_dir.readFileAllocOptions(allocator, VERTEX_SHADER_FILE, MAX_SHADER_SIZE, null, .of(u8), 0),
+        .fragment = .{
+            try shader_dir.readFileAllocOptions(allocator, PASS1_SHADER_FILE, MAX_SHADER_SIZE, null, .of(u8), 0),
+            try shader_dir.readFileAllocOptions(allocator, PASS2_SHADER_FILE, MAX_SHADER_SIZE, null, .of(u8), 0),
+        }
     };
 }
 
 fn setupPipeline(shaders: Shaders, window: *glfw.Window) !void {
     var stderr = state.console.writer(Console.STDERR);
 
-    const vert_shad = gl.createShader(gl.VERTEX_SHADER);
-    const frag_shad = gl.createShader(gl.FRAGMENT_SHADER);
+    const vertex = gl.createShader(gl.VERTEX_SHADER);
+    const fragment1 = gl.createShader(gl.FRAGMENT_SHADER);
+    const fragment2 = gl.createShader(gl.FRAGMENT_SHADER);
 
-    gl.shaderSource(vert_shad, 1, @ptrCast(&shaders.vertex), null);
-    gl.shaderSource(frag_shad, 1, @ptrCast(&shaders.fragment), null);
+    gl.shaderSource(vertex, 1, @ptrCast(&shaders.vertex), null);
+    gl.shaderSource(fragment1, 1, @ptrCast(&shaders.fragment[0]), null);
+    gl.shaderSource(fragment2, 1, @ptrCast(&shaders.fragment[1]), null);
 
     var info_log: [INFO_LOG_MAX:0]u8 = undefined;
     var log_len: c_int = undefined;
     var shader_compiled: gl.Int = undefined;
 
-    gl.compileShader(vert_shad);
-    gl.getShaderiv(vert_shad, gl.COMPILE_STATUS, &shader_compiled);
+    gl.compileShader(vertex);
+    gl.getShaderiv(vertex, gl.COMPILE_STATUS, &shader_compiled);
     if (shader_compiled != gl.TRUE) {
-        gl.getShaderInfoLog(vert_shad, INFO_LOG_MAX, @ptrCast(&log_len), @ptrCast(&info_log));
+        gl.getShaderInfoLog(vertex, INFO_LOG_MAX, @ptrCast(&log_len), @ptrCast(&info_log));
         try stderr.print("[Vertex shader] {s}", .{info_log[0..@intCast(log_len)]});
         try stderr.flush();
         return;
     }
 
-    gl.compileShader(frag_shad);
-    gl.getShaderiv(frag_shad, gl.COMPILE_STATUS, &shader_compiled);
+    gl.compileShader(fragment1);
+    gl.getShaderiv(fragment1, gl.COMPILE_STATUS, &shader_compiled);
     if (shader_compiled != gl.TRUE) {
-        gl.getShaderInfoLog(frag_shad, INFO_LOG_MAX, @ptrCast(&log_len), @ptrCast(&info_log));
-        try stderr.print("[Fragment shader] {s}", .{info_log[0..@intCast(log_len)]});
+        gl.getShaderInfoLog(fragment1, INFO_LOG_MAX, @ptrCast(&log_len), @ptrCast(&info_log));
+        try stderr.print("[Fragment (pass 1) shader] {s}", .{info_log[0..@intCast(log_len)]});
         try stderr.flush();
         return;
     }
 
-    const program = gl.createProgram();
+    gl.compileShader(fragment2);
+    gl.getShaderiv(fragment2, gl.COMPILE_STATUS, &shader_compiled);
+    if (shader_compiled != gl.TRUE) {
+        gl.getShaderInfoLog(fragment2, INFO_LOG_MAX, @ptrCast(&log_len), @ptrCast(&info_log));
+        try stderr.print("[Fragment (pass 2) shader] {s}", .{info_log[0..@intCast(log_len)]});
+        try stderr.flush();
+        return;
+    }
 
-    gl.attachShader(program, vert_shad);
-    gl.attachShader(program, frag_shad);
+    const program1 = gl.createProgram();
+    const program2 = gl.createProgram();
 
-    gl.linkProgram(program);
+    gl.attachShader(program1, vertex);
+    gl.attachShader(program1, fragment1);
+    gl.attachShader(program2, vertex);
+    gl.attachShader(program2, fragment2);
+
+    gl.linkProgram(program1);
+    gl.linkProgram(program2);
 
     var program_linked: gl.Int = undefined;
-    gl.getProgramiv(program, gl.LINK_STATUS, &program_linked);
+    gl.getProgramiv(program1, gl.LINK_STATUS, &program_linked);
     if (program_linked != gl.TRUE) {
-        gl.getProgramInfoLog(program, INFO_LOG_MAX, @ptrCast(&log_len), @ptrCast(&info_log));
-        try stderr.print("[Shader program] {s}", .{info_log[0..@intCast(log_len)]});
+        gl.getProgramInfoLog(program1, INFO_LOG_MAX, @ptrCast(&log_len), @ptrCast(&info_log));
+        try stderr.print("[Pass 1 program] {s}", .{info_log[0..@intCast(log_len)]});
         try stderr.flush();
         return;
     }
 
-    gl.useProgram(program);
+    gl.getProgramiv(program2, gl.LINK_STATUS, &program_linked);
+    if (program_linked != gl.TRUE) {
+        gl.getProgramInfoLog(program2, INFO_LOG_MAX, @ptrCast(&log_len), @ptrCast(&info_log));
+        try stderr.print("[Pass 2 program] {s}", .{info_log[0..@intCast(log_len)]});
+        try stderr.flush();
+        return;
+    }
 
-    state.opengl.shader = .{
-        .vertex = vert_shad,
-        .fragment = frag_shad,
-        .program = program,
+    var fb_size: [2]c_int = undefined;
+    glfw.getFramebufferSize(window, @constCast(&fb_size[0]), @constCast(&fb_size[1]));
+
+    // genero texture
+    var depth_tex: gl.Uint = undefined;
+    gl.genTextures(1, @ptrCast(&depth_tex));
+    // bindo texture
+    gl.bindTexture(gl.TEXTURE_2D, depth_tex);
+    // configuro 2d image texture
+    const fb_size_red: [2]c_int = .{
+        @intFromFloat(@as(gl.Float, @floatFromInt(fb_size[0])) * RES_REDUCTION),
+        @intFromFloat(@as(gl.Float, @floatFromInt(fb_size[1])) * RES_REDUCTION)
+    };
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, fb_size_red[0], fb_size_red[1], 0, gl.RED, gl.FLOAT, null);
+    // assegno parametri texture
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+
+    // genero fb
+    var fb: gl.Uint = undefined;
+    gl.genFramebuffers(1, @ptrCast(&fb));
+    // bindo fb
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+    // assegno texture a fb
+    gl.framebufferTexture(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, depth_tex, 0);
+
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, depth_tex);
+
+    state.opengl.pipeline = .{
+        .vertex = vertex,
+        .fragment = .{fragment1, fragment2},
+        .program = .{program1, program2},
+        .alt_fb = fb,
+        .viewport = .{fb_size[0], fb_size[1]},
     };
 
+    // Bind uniforms
     state.opengl.uniforms = .{
-        .resolution = gl.getUniformLocation(program, "uResolution"),
-        .time = gl.getUniformLocation(program, "uTime"),
-        .cam_fov = gl.getUniformLocation(program, "uFov"),
-        .cam_pos = gl.getUniformLocation(program, "uCamPos"),
-        .cam_rot = gl.getUniformLocation(program, "uCamRot"),
-        .crank_angle = gl.getUniformLocation(program, "uCrankAngle"),
+        .{
+            .resolution = gl.getUniformLocation(program1, "uResolution"),
+            .time = gl.getUniformLocation(program1, "uTime"),
+            .cam_fov = gl.getUniformLocation(program1, "uFov"),
+            .cam_pos = gl.getUniformLocation(program1, "uCamPos"),
+            .cam_rot = gl.getUniformLocation(program1, "uCamRot"),
+            .crank_angle = gl.getUniformLocation(program1, "uCrankAngle"),
+        },
+        .{
+            .resolution = gl.getUniformLocation(program2, "uResolution"),
+            .time = gl.getUniformLocation(program2, "uTime"),
+            .cam_fov = gl.getUniformLocation(program2, "uFov"),
+            .cam_pos = gl.getUniformLocation(program2, "uCamPos"),
+            .cam_rot = gl.getUniformLocation(program2, "uCamRot"),
+            .crank_angle = gl.getUniformLocation(program2, "uCrankAngle"),
+        },
     };
+
+    // Init uniforms
     const uniforms = &state.opengl.uniforms.?;
 
-    var fb_width: c_int = undefined;
-    var fb_height: c_int = undefined;
-    glfw.getFramebufferSize(window, &fb_width, &fb_height);
+    gl.uniform2f(uniforms[0].resolution, @floatFromInt(fb_size_red[0]), @floatFromInt(fb_size_red[1]));
+    gl.uniform1f(uniforms[0].cam_fov, state.camera.fov);
 
-    gl.uniform2f(uniforms.resolution, @floatFromInt(fb_width), @floatFromInt(fb_height));
-    gl.uniform1f(uniforms.cam_fov, state.camera.fov);
-    gl.uniform3fv(uniforms.cam_pos, 1, &state.camera.position.toArray());
+    gl.uniform2f(uniforms[1].resolution, @floatFromInt(fb_size[0]), @floatFromInt(fb_size[1]));
+    gl.uniform1f(uniforms[1].cam_fov, state.camera.fov);
 }
 
 pub fn main() !void {
@@ -213,13 +263,16 @@ pub fn main() !void {
 
     const shaders = try loadShaders(allocator);
     defer allocator.free(shaders.vertex);
-    defer allocator.free(shaders.fragment);
+    defer allocator.free(shaders.fragment[0]);
+    defer allocator.free(shaders.fragment[1]);
 
     try setupPipeline(shaders, window);
-    const shader = &state.opengl.shader.?;
-    defer gl.deleteShader(shader.vertex);
-    defer gl.deleteShader(shader.fragment);
-    defer gl.deleteProgram(shader.program);
+    const pipeline = &state.opengl.pipeline.?;
+    defer gl.deleteShader(pipeline.vertex);
+    defer gl.deleteShader(pipeline.fragment[0]);
+    defer gl.deleteShader(pipeline.fragment[1]);
+    defer gl.deleteProgram(pipeline.program[0]);
+    defer gl.deleteProgram(pipeline.program[1]);
 
     const uniform = &state.opengl.uniforms.?;
     var last_dbg_update: f32 = 0;
@@ -231,8 +284,34 @@ pub fn main() !void {
         glfw.pollEvents();
         getInput(window);
 
-        gl.uniform1f(uniform.time, now);
+        // bindo fb 1
+        gl.bindFramebuffer(gl.FRAMEBUFFER, pipeline.alt_fb);
+        // setto viewport
+        const viewport_red: [2]c_int = .{
+            @intFromFloat(@as(gl.Float, @floatFromInt(pipeline.viewport[0])) * RES_REDUCTION),
+            @intFromFloat(@as(gl.Float, @floatFromInt(pipeline.viewport[1])) * RES_REDUCTION),
+        };
+        gl.viewport(0, 0, viewport_red[0], viewport_red[1]);
+        // uso prog 1
+        gl.useProgram(pipeline.program[0]);
+        // setto time
+        gl.uniform1f(uniform[0].time, now);
+        // draw call
         gl.drawArrays(gl.TRIANGLES, 0, canvas.len / VERT_SIZE);
+
+        // bind fb 0
+        gl.bindFramebuffer(gl.FRAMEBUFFER, 0);
+        // setto viewport
+        gl.viewport(0, 0, pipeline.viewport[0], pipeline.viewport[1]);
+        // uso prog 2
+        gl.useProgram(pipeline.program[1]);
+        // attivo texture
+        // bindo texture
+        // setto time
+        gl.uniform1f(uniform[1].time, now);
+        // draw call
+        gl.drawArrays(gl.TRIANGLES, 0, canvas.len / VERT_SIZE);
+
         window.swapBuffers();
 
         state.debug.performance.addFrametime(state.dt);
@@ -273,8 +352,10 @@ fn moveCamera(window: *glfw.Window) void {
 
     var pos = &state.camera.position;
     pos.* = pos.sum(cam_forward.mul(cam_speed).mul(state.dt));
+
     const uniforms = &(state.opengl.uniforms orelse return);
-    gl.uniform3fv(uniforms.cam_pos, 1, &state.camera.position.toArray());
+    gl.uniform3fv(uniforms[0].cam_pos, 1, &state.camera.position.toArray());
+    gl.uniform3fv(uniforms[1].cam_pos, 1, &state.camera.position.toArray());
 }
 
 var prev_mx: f64 = 0;
@@ -315,7 +396,8 @@ fn rotateCamera(window: *glfw.Window) void {
 
     rot.* = x_rot.mul(rot.*).normalize(); // normalize to stop errors from propagating through frames
 
-    gl.uniform4f(uniforms.cam_rot, rot.*.i, rot.*.j, rot.*.k, rot.*.w);
+    gl.uniform4f(uniforms[0].cam_rot, rot.*.i, rot.*.j, rot.*.k, rot.*.w);
+    gl.uniform4f(uniforms[1].cam_rot, rot.*.i, rot.*.j, rot.*.k, rot.*.w);
 
     prev_mx = mx;
     prev_my = my;
@@ -332,7 +414,8 @@ const FOV_SENS: f32 = 1.0;
 fn adjustCamFov(scroll: f32) void {
     const uniforms = &(state.opengl.uniforms orelse return);
     state.camera.setFOV(state.camera.fov + -scroll * FOV_SENS);
-    gl.uniform1f(uniforms.cam_fov, state.camera.fov);
+    gl.uniform1f(uniforms[0].cam_fov, state.camera.fov);
+    gl.uniform1f(uniforms[1].cam_fov, state.camera.fov);
 }
 
 const CAM_SPEED_MOD_DEF: f32 = 0.25;
@@ -353,7 +436,9 @@ fn scrollCallback(window: *glfw.Window, x_offset: f64, y_offset: f64) callconv(.
 fn fbResizeCallback(window: *glfw.Window, width: c_int, height: c_int) callconv(.c) void {
     _ = window;
 
-    const uniforms = &(state.opengl.uniforms orelse return);
-    gl.uniform2f(uniforms.resolution, @floatFromInt(width), @floatFromInt(height));
-    gl.viewport(0, 0, width, height);
+    state.opengl.pipeline.?.viewport[0] = width;
+    state.opengl.pipeline.?.viewport[1] = height;
+    // const uniforms = &(state.opengl.uniforms orelse return);
+    // gl.uniform2f(uniforms.resolution, @floatFromInt(width), @floatFromInt(height));
+    // gl.viewport(0, 0, width, height);
 }
