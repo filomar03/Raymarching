@@ -12,7 +12,7 @@ uniform float uCrankAngle;
 uniform sampler2D uSampler;
 
 // Rendering params
-#define HIT_DISTANCE 0.0001
+#define HIT_DISTANCE 0.001
 #define MAX_STEP 3000
 #define MAX_TRAVEL 1000.0
 #define EPSILON 0.001
