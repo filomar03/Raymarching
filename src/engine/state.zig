@@ -85,7 +85,7 @@ pub const DebugInfo = struct {
     performance: PerfInfo = .{},
 };
 
-const FRAMETIME_RBUF_DIM = 64; // power of 2 to enable modulo optimization (& insted of %)
+const FRAMETIME_RBUF_DIM = 2048; // power of 2 to enable modulo optimization (& insted of %)
 
 pub const PerfInfo = struct {
     frametime_rbuf: [FRAMETIME_RBUF_DIM]f32 = [_]f32{0} ** FRAMETIME_RBUF_DIM,
