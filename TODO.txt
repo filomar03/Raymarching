@@ -1,5 +1,15 @@
 implementare:
-aggiornare uniform in funzione apposita
-rendering multi passo
-migliorare errori e gestione
-UBO
+aggiornare a opengl 4.6
+debug callback
+convertire uniform in ssbo
+calcolare i precompute value in shader una sola volta (condivisi tra i 2 passi)
+spostare calcuoli che possono essere fatti in CPU fuori dalla GPU
+ray packing per i riflessi
+uniform rendering parameters between sahders
+handle dinamic scenes
+
+sistemare travel mantenuto tra i 2 passi
+sistemare fatto che da lontano e tutto pixeloso
+aggiungere world down (Ctrl)
+sistemare pin meno sporgente
+sistemare asta pin piu in alto
