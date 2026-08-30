@@ -354,10 +354,14 @@ fn moveCamera(window: *glfw.Window) void {
     const left: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.a) == glfw.Action.press));
     const down: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.q) == glfw.Action.press));
     const up: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.e) == glfw.Action.press));
-    var input: glm.Vec3 = .{ .x = right + -left, .y = up + -down, .z = forward + -backwards };
-    input = input.normalize();
+    const down: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.q) == glfw.Action.press));
+    const jump: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.space) == glfw.Action.press));
 
-    const cam_forward = state.camera.rotation.rotateVec(input);
+    const world_mov: glm.Vec3 = .{ .x = 0, .y = jump * cam_speed.y, .z = 0 };
+    const cam_mov: glm.Vec3 = .{ .x = right + -left, .y = up + -down, .z = forward + -backwards };
+    var cam_forward = state.camera.rotation.rotateVec(cam_mov);
+
+    cam_forward = cam_forward.sum(world_mov).normalize();
 
     var pos = &state.camera.position;
     pos.* = pos.sum(cam_forward.mul(cam_speed).mul(state.dt));
