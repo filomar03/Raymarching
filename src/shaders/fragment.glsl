@@ -14,7 +14,7 @@ uniform sampler2D uSampler;
 // Rendering params
 #define HIT_DISTANCE 0.0001
 #define MAX_STEP 3000
-#define MAX_TRAVEL 1000.0
+#define MAX_TRAVEL 10000.0
 #define EPSILON 0.001
 #define MAX_BOUNCE 1
 #define NUDGE 0.01
@@ -54,9 +54,10 @@ struct HitInfo {
 };
 
 // Scene constants
-#define COLOR_OUT_OF_STEP COLOR_SKY_BOX
+#define COLOR_OUT_OF_STEP vec3(0, 1, 0)
 // #define COLOR_OUT_OF_STEP vec3(0, 1, 0)
-#define COLOR_SKY_BOX vec3(213, 227, 229) / 255.0
+#define COLOR_SKY_BOX vec3(0.4, 0.2, 0.2)
+// #define COLOR_SKY_BOX vec3(213, 227, 229) / 255.0
 #define COLOR_LIGHT vec3(1.0, 0.92, 0.75)
 
 #define DIR_LIGHT 99999999
@@ -443,7 +444,7 @@ HitInfo rayMarch(vec3 starting_point, vec3 ray, float start_travel, int start_st
             return HitInfo(HIT, travel, scene.mat_index);
         }
 
-        if (travel > MAX_TRAVEL) {
+        if (travel > MAX_TRAVEL) { // entro un certo range per compensare la precione diversa dei 2 passi
             return HitInfo(FAR, travel, scene.mat_index);
         }
 
@@ -456,13 +457,17 @@ HitInfo rayMarch(vec3 starting_point, vec3 ray, float start_travel, int start_st
 void main()
 {
     float aspect_ratio = uResolution.x / uResolution.y;
-    float tan_half_fov = tan(radians(uFov * 0.5)); // projection plane half height over near distance factor
-    vec2 uv = gl_FragCoord.xy / uResolution * 2.0 - 1; // normalize
-    uv *= vec2(tan_half_fov); // scale to adjust for FOV (no need to mul by near since it's 1)
-    uv.x *= aspect_ratio; // scale x to maintain ratio
+    float tan_half_fov = tan(radians(uFov / 2)); // projection plane half height over near distance factor
+    vec2 ndc = gl_FragCoord.xy / uResolution * 2.0 - 1; // normalize
+    ndc *= tan_half_fov; // scale to adjust for FOV (no need to mul by near since it's 1)
+    ndc.x *= aspect_ratio; // scale x to maintain ratio
+
+    vec2 uv = gl_FragCoord.xy / uResolution;
+    float approx_dist = texture(uSampler, uv).r;
 
     vec3 p = uCamPos;
-    vec3 ray = normalize(rotate(uCamRot, vec3(uv, 1))); // near is set to 1, since changing it doesn't affect the rendering (for now)
+    vec3 ray = normalize(rotate(uCamRot, vec3(ndc, 1))); // near is set to 1, since changing it doesn't affect the rendering (for now)
+    p += ray * approx_dist;
     vec3 observer_position = uCamPos;
 
     float ray_energy = 1.0;
@@ -470,7 +475,7 @@ void main()
 
     computeFrameValues();
     for (int bounce = 0; bounce < MAX_BOUNCE; bounce++) {
-        HitInfo hit = rayMarch(p, ray, 0, 0);
+        HitInfo hit = rayMarch(p, ray, approx_dist, 0);
         p += ray * hit.travel;
 
         if (hit.reason == HIT) {
@@ -520,11 +525,13 @@ void main()
             }
         }
         else if (hit.reason == FAR) {
-            final_color += COLOR_SKY_BOX * ray_energy;
+            final_color = COLOR_SKY_BOX;
+            // final_color += COLOR_SKY_BOX * ray_energy;
             break;
         }
         else if (hit.reason == OUT_OF_STEPS) {
-            final_color += COLOR_OUT_OF_STEP * ray_energy;
+            final_color = COLOR_OUT_OF_STEP;
+            // final_color += COLOR_OUT_OF_STEP * ray_energy;
             break;
         }
     }
