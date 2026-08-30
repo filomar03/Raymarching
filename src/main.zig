@@ -13,7 +13,7 @@ const DBG_UPDATE_INTERVAL: f32 = 0.5;
 const SHADER_DIR = "src/shaders";
 const VERTEX_SHADER_FILE = "vertex.glsl";
 const PASS1_SHADER_FILE = "fragment fast.glsl";
-const PASS2_SHADER_FILE = "frag2 test.glsl";
+const PASS2_SHADER_FILE = "fragment.glsl";
 
 // Parametri shader
 const MAX_SHADER_SIZE = 1024 * 1024; // 1 Mib
@@ -178,6 +178,8 @@ fn setupPipeline(shaders: Shaders, window: *glfw.Window) !void {
     // genero texture
     var depth_tex: gl.Uint = undefined;
     gl.genTextures(1, @ptrCast(&depth_tex));
+    // seleziono tex slot
+    gl.activeTexture(gl.TEXTURE0);
     // bindo texture
     gl.bindTexture(gl.TEXTURE_2D, depth_tex);
     // configuro 2d image texture
@@ -186,6 +188,7 @@ fn setupPipeline(shaders: Shaders, window: *glfw.Window) !void {
         @intFromFloat(@as(gl.Float, @floatFromInt(fb_size[1])) * RES_REDUCTION)
     };
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, fb_size_red[0], fb_size_red[1], 0, gl.RED, gl.FLOAT, null);
+
     // assegno parametri texture
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
@@ -198,15 +201,18 @@ fn setupPipeline(shaders: Shaders, window: *glfw.Window) !void {
     // assegno texture a fb
     gl.framebufferTexture(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, depth_tex, 0);
 
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, depth_tex);
-
     state.opengl.pipeline = .{
         .vertex = vertex,
         .fragment = .{fragment1, fragment2},
         .program = .{program1, program2},
         .alt_fb = fb,
-        .viewport = .{fb_size[0], fb_size[1]},
+        .fb_size = .{
+            .{
+                @as(f32, @floatFromInt(fb_size[0])) * RES_REDUCTION,
+                @as(f32, @floatFromInt(fb_size[1])) * RES_REDUCTION
+            },
+            .{@floatFromInt(fb_size[0]), @floatFromInt(fb_size[1])},
+        }
     };
 
     // Bind uniforms
@@ -218,6 +224,7 @@ fn setupPipeline(shaders: Shaders, window: *glfw.Window) !void {
             .cam_pos = gl.getUniformLocation(program1, "uCamPos"),
             .cam_rot = gl.getUniformLocation(program1, "uCamRot"),
             .crank_angle = gl.getUniformLocation(program1, "uCrankAngle"),
+            .depth_tex = 0,
         },
         .{
             .resolution = gl.getUniformLocation(program2, "uResolution"),
@@ -226,17 +233,9 @@ fn setupPipeline(shaders: Shaders, window: *glfw.Window) !void {
             .cam_pos = gl.getUniformLocation(program2, "uCamPos"),
             .cam_rot = gl.getUniformLocation(program2, "uCamRot"),
             .crank_angle = gl.getUniformLocation(program2, "uCrankAngle"),
+            .depth_tex = gl.getUniformLocation(program2, "uSampler"),
         },
     };
-
-    // Init uniforms
-    const uniforms = &state.opengl.uniforms.?;
-
-    gl.uniform2f(uniforms[0].resolution, @floatFromInt(fb_size_red[0]), @floatFromInt(fb_size_red[1]));
-    gl.uniform1f(uniforms[0].cam_fov, state.camera.fov);
-
-    gl.uniform2f(uniforms[1].resolution, @floatFromInt(fb_size[0]), @floatFromInt(fb_size[1]));
-    gl.uniform1f(uniforms[1].cam_fov, state.camera.fov);
 }
 
 pub fn main() !void {
@@ -274,7 +273,9 @@ pub fn main() !void {
     defer gl.deleteProgram(pipeline.program[0]);
     defer gl.deleteProgram(pipeline.program[1]);
 
-    const uniform = &state.opengl.uniforms.?;
+
+    const unifs = &state.opengl.uniforms.?;
+    gl.uniform1i(unifs[1].depth_tex, 0);
     var last_dbg_update: f32 = 0;
     while (!window.shouldClose()) {
         const now = @as(f32, @floatCast(glfw.getTime()));
@@ -284,32 +285,28 @@ pub fn main() !void {
         glfw.pollEvents();
         getInput(window);
 
-        // bindo fb 1
+        // 1st pass
         gl.bindFramebuffer(gl.FRAMEBUFFER, pipeline.alt_fb);
-        // setto viewport
-        const viewport_red: [2]c_int = .{
-            @intFromFloat(@as(gl.Float, @floatFromInt(pipeline.viewport[0])) * RES_REDUCTION),
-            @intFromFloat(@as(gl.Float, @floatFromInt(pipeline.viewport[1])) * RES_REDUCTION),
-        };
-        gl.viewport(0, 0, viewport_red[0], viewport_red[1]);
-        // uso prog 1
         gl.useProgram(pipeline.program[0]);
-        // setto time
-        gl.uniform1f(uniform[0].time, now);
-        // draw call
+        updateUniforms(unifs[0], 0);
+        gl.viewport(
+            0,
+            0,
+            @as(c_int, @intFromFloat(pipeline.fb_size[0][0])),
+            @as(c_int, @intFromFloat(pipeline.fb_size[0][1]))
+        );
         gl.drawArrays(gl.TRIANGLES, 0, canvas.len / VERT_SIZE);
 
-        // bind fb 0
+        // 2nd pass
         gl.bindFramebuffer(gl.FRAMEBUFFER, 0);
-        // setto viewport
-        gl.viewport(0, 0, pipeline.viewport[0], pipeline.viewport[1]);
-        // uso prog 2
         gl.useProgram(pipeline.program[1]);
-        // attivo texture
-        // bindo texture
-        // setto time
-        gl.uniform1f(uniform[1].time, now);
-        // draw call
+        updateUniforms(unifs[1], 1);
+        gl.viewport(
+            0,
+            0,
+            @as(c_int, @intFromFloat(pipeline.fb_size[1][0])),
+            @as(c_int, @intFromFloat(pipeline.fb_size[1][1]))
+        );
         gl.drawArrays(gl.TRIANGLES, 0, canvas.len / VERT_SIZE);
 
         window.swapBuffers();
@@ -349,6 +346,17 @@ fn getInput(window: *glfw.Window) void {
     detectQuit(window);
 }
 
+fn updateUniforms(locations: engine.OpenGL.UniformLocations, pass: u32) void {
+    const fb_size = state.*.opengl.pipeline.?.fb_size;
+    gl.uniform2f(locations.resolution, fb_size[pass][0], fb_size[pass][1]);
+    gl.uniform3fv(locations.cam_pos, 1, &state.camera.position.toArray());
+    const rot = &state.*.camera.rotation;
+    gl.uniform4f(locations.cam_rot, rot.*.i, rot.*.j, rot.*.k, rot.*.w);
+    gl.uniform1f(locations.cam_fov, state.camera.fov);
+    gl.uniform1f(locations.time, state.now);
+    gl.uniform1f(locations.crank_angle, @floatCast(state.simulation.crank_angle));
+}
+
 const CAM_SPEED_DEF = glm.Vec3{ .x = 7.5, .y = 3, .z = 7.5 };
 var cam_speed = CAM_SPEED_DEF;
 
@@ -366,10 +374,6 @@ fn moveCamera(window: *glfw.Window) void {
 
     var pos = &state.camera.position;
     pos.* = pos.sum(cam_forward.mul(cam_speed).mul(state.dt));
-
-    const uniforms = &(state.opengl.uniforms orelse return);
-    gl.uniform3fv(uniforms[0].cam_pos, 1, &state.camera.position.toArray());
-    gl.uniform3fv(uniforms[1].cam_pos, 1, &state.camera.position.toArray());
 }
 
 var prev_mx: f64 = 0;
@@ -398,7 +402,6 @@ fn rotateCamera(window: *glfw.Window) void {
     const dmy = @as(f32, @floatCast(my - prev_my));
 
     const rot = &state.camera.rotation;
-    const uniforms = &(state.opengl.uniforms orelse return);
 
     const y_angle = dmx * CAM_SENS;
     const y_rot = glm.Quaternion.fromAxis(Y_AXIS, y_angle);
@@ -409,9 +412,6 @@ fn rotateCamera(window: *glfw.Window) void {
     const x_rot = glm.Quaternion.fromAxis(rotated_x_axis, x_angle);
 
     rot.* = x_rot.mul(rot.*).normalize(); // normalize to stop errors from propagating through frames
-
-    gl.uniform4f(uniforms[0].cam_rot, rot.*.i, rot.*.j, rot.*.k, rot.*.w);
-    gl.uniform4f(uniforms[1].cam_rot, rot.*.i, rot.*.j, rot.*.k, rot.*.w);
 
     prev_mx = mx;
     prev_my = my;
@@ -426,10 +426,7 @@ fn detectQuit(window: *glfw.Window) void {
 const FOV_SENS: f32 = 1.0;
 
 fn adjustCamFov(scroll: f32) void {
-    const uniforms = &(state.opengl.uniforms orelse return);
     state.camera.setFOV(state.camera.fov + -scroll * FOV_SENS);
-    gl.uniform1f(uniforms[0].cam_fov, state.camera.fov);
-    gl.uniform1f(uniforms[1].cam_fov, state.camera.fov);
 }
 
 const CAM_SPEED_MOD_DEF: f32 = 0.25;
@@ -439,7 +436,7 @@ fn scrollCallback(window: *glfw.Window, x_offset: f64, y_offset: f64) callconv(.
     _ = x_offset;
     const scroll = @as(f32, @floatCast(y_offset));
 
-    if (glfw.getKey(window, glfw.Key.left_control) == glfw.Action.press) {
+    if (glfw.getKey(window, glfw.Key.left_control) != glfw.Action.press) {
         adjustCamFov(scroll);
     } else {
         cam_speed_mod = std.math.clamp(cam_speed_mod + scroll * CAM_SPEED_MOD_DEF, 0.1, 10.0);
@@ -450,9 +447,8 @@ fn scrollCallback(window: *glfw.Window, x_offset: f64, y_offset: f64) callconv(.
 fn fbResizeCallback(window: *glfw.Window, width: c_int, height: c_int) callconv(.c) void {
     _ = window;
 
-    state.opengl.pipeline.?.viewport[0] = width;
-    state.opengl.pipeline.?.viewport[1] = height;
-    // const uniforms = &(state.opengl.uniforms orelse return);
-    // gl.uniform2f(uniforms.resolution, @floatFromInt(width), @floatFromInt(height));
-    // gl.viewport(0, 0, width, height);
+    state.opengl.pipeline.?.fb_size[0][0] = @as(f32, @floatFromInt(width)) * RES_REDUCTION;
+    state.opengl.pipeline.?.fb_size[0][1] = @as(f32, @floatFromInt(height)) * RES_REDUCTION;
+    state.opengl.pipeline.?.fb_size[1][0] = @floatFromInt(width);
+    state.opengl.pipeline.?.fb_size[1][1] = @floatFromInt(height);
 }

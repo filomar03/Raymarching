@@ -42,24 +42,25 @@ pub const ConsoleInterface = struct {
 };
 
 pub const OpenGL = struct {
-    pipeline: PipelineInfo = null,
-    uniforms: [2]UniformLocations = null,
+    pipeline: ?PipelineInfo = null,
+    uniforms: ?[2]UniformLocations = null,
 
     const PipelineInfo = struct {
         vertex: c_uint,
         fragment: [2]c_uint,
         program: [2]c_uint,
-        framebuffer: [2]c_uint = .{0, 0},
-        viewport: [2]c_int,
+        alt_fb: c_uint,
+        fb_size: [2][2]f32,
     };
 
-    const UniformLocations = struct {
+    pub const UniformLocations = struct {
         resolution: c_int,
         time: c_int,
         cam_fov: c_int,
         cam_pos: c_int,
         cam_rot: c_int,
         crank_angle: c_int,
+        depth_tex: c_int,
     };
 };
 

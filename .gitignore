@@ -2,3 +2,4 @@
 zig-out
 .zed
 libs
+zig-pkg

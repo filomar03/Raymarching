@@ -9,12 +9,12 @@ uniform vec4 uCamRot;
 uniform float uCrankAngle;
 
 // Shader output
-out float FragColor;
+out float Distance;
 
 // Rendering params
 #define HIT_DISTANCE 0.01
 #define MAX_STEP 3000
-#define MAX_TRAVEL 100.0
+#define MAX_TRAVEL 1000.0
 #define NUDGE 0.01
 
 // Shape operations
@@ -127,11 +127,10 @@ float sdGear(vec3 p, float r, float w, float teeth, float td, float angle) {
 #define X vec3(1.0, 0.0, 0.0)
 #define Y vec3(0.0, 1.0, 0.0)
 #define Z vec3(0.0, 0.0, 1.0)
-#define A_NUDGE 0.01
-#define LIMITER 10
+#define A_NUDGE 0.1
 
 // Constant engine parameters
-const vec3 abs_eng_position = vec3(0.0, -3.0, 3.0);
+const vec3 abs_eng_position = vec3(0.0, -3.0, 1.0);
 const float phases[4] = float[](0.0, 1.57079, 4.71238, 3.14159);
 
 const float cylinder_spacing = 0.2;
@@ -222,7 +221,7 @@ float map(vec3 p) {
 
         float d_piston_outer = sdCylinder(outer_pos, vec2(piston_outer_r, piston_outer_h));
         float d_piston_inner = sdCylinder(inner_pos, vec2(piston_inner_r, piston_inner_h));
-        float d_piston_pin_bore = sdCylinder(piston_pin_pos.xzy, vec2(crank_pin_r, crank_pin_h));
+        float d_piston_pin_bore = sdCylinder(piston_pin_pos.xzy, vec2(crank_pin_r, crank_pin_h + A_NUDGE));
 
         float d_piston = d_piston_outer;
         d_piston = opSubtract(d_piston, d_piston_inner);
@@ -312,8 +311,9 @@ float map(vec3 p) {
 
     float scene = MAX_TRAVEL;
 
-    scene = opUnion(scene, d_block);
+    // scene = opUnion(scene, d_block);
     scene = opUnion(scene, d_conrods);
+    scene = opUnion(scene, d_pistons);
     scene = opUnion(scene, d_rings);
     scene = opUnion(scene, d_cranks);
     scene = opUnion(scene, d_timing_gear);
@@ -363,5 +363,5 @@ void main()
     vec3 observer_position = uCamPos;
 
     computeFrameValues();
-    FragColor = rayMarch(p, ray, 0, 0);
+    Distance = rayMarch(p, ray, 0, 0);
 }

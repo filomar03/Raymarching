@@ -1,6 +1,7 @@
 #version 330 core
 
-// Uniforms
+out vec4 FragColor;
+
 uniform vec2 uResolution;
 uniform float uTime;
 uniform float uFov;
@@ -8,26 +9,24 @@ uniform vec3 uCamPos;
 uniform vec4 uCamRot;
 uniform float uCrankAngle;
 
-// Shader output
-out vec4 FragColor;
+uniform sampler2D uSampler;
 
 // Rendering params
 #define HIT_DISTANCE 0.0001
 #define MAX_STEP 3000
-#define MAX_TRAVEL 100.0
+#define MAX_TRAVEL 1000.0
 #define EPSILON 0.001
-#define MAX_BOUNCE 3
+#define MAX_BOUNCE 1
 #define NUDGE 0.01
 
 #define HIT 0
 #define FAR 1
 #define OUT_OF_STEPS 2
 
-#define CRT_EFFECT
+// #define CRT_EFFECT
 
-#define CEL_SHADING
+// #define CEL_SHADING
 #define CEL_SHADING_Q 3
-
 
 // Structs
 struct Light {
@@ -127,12 +126,6 @@ float opRound(float sdf, float r) {
     return sdf - r;
 }
 
-// float opRepetition( in vec3 p, in vec3 s, in sdf3d primitive )
-// {
-//     vec3 q = p - s*round(p/s);
-//     return primitive( q );
-// }
-
 // SDFs (formule prese da: https://iquilezles.org/articles/distfunctions/)
 float sdSphere(vec3 center, float radius) {
     return length(center) - radius;
@@ -193,17 +186,16 @@ float sdGear(vec3 p, float r, float w, float teeth, float td, float angle) {
 
     vec2 d = vec2(length(p2) - r_mod, abs(p.z) - w);          // ===| extrude and compute distance
     float ed = min(max(d.x, d.y), 0.0) + length(max(d, 0.0)); // ===|
-    return ed * 0.8; // ==| reduces distance since it can overshoot, r_mod is radial distance not euclidean distance
+    return ed * 0.8; // ===| reduces distance since it can overshoot, r_mod is radial distance not euclidean distance
 }
 
 #define X vec3(1.0, 0.0, 0.0)
 #define Y vec3(0.0, 1.0, 0.0)
 #define Z vec3(0.0, 0.0, 1.0)
-#define A_NUDGE 0.01
-#define LIMITER 10
+#define A_NUDGE 0.1
 
 // Constant engine parameters
-const vec3 abs_eng_position = vec3(0.0, -3.0, 3.0);
+const vec3 abs_eng_position = vec3(0.0, -3.0, 1.0);
 const float phases[4] = float[](0.0, 1.57079, 4.71238, 3.14159);
 
 const float cylinder_spacing = 0.2;
@@ -294,7 +286,7 @@ SceneInfo map(vec3 p) {
 
         float d_piston_outer = sdCylinder(outer_pos, vec2(piston_outer_r, piston_outer_h));
         float d_piston_inner = sdCylinder(inner_pos, vec2(piston_inner_r, piston_inner_h));
-        float d_piston_pin_bore = sdCylinder(piston_pin_pos.xzy, vec2(crank_pin_r, crank_pin_h));
+        float d_piston_pin_bore = sdCylinder(piston_pin_pos.xzy, vec2(crank_pin_r, crank_pin_h + A_NUDGE));
 
         float d_piston = d_piston_outer;
         d_piston = opSubtract(d_piston, d_piston_inner);
