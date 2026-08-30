@@ -318,6 +318,8 @@ pub fn main() !void {
             try stdout.print("FPS: {:.0}\n", .{1 / state.debug.performance.getAvgFrameTime()});
             try stdout.print("FOV: {:.0}\n", .{state.camera.fov});
             try stdout.print("SPEED: {:.1} {:.1} {:.1}\n", .{cam_speed.x, cam_speed.y, cam_speed.z});
+            const cam_pos = &state.*.camera.position;
+            try stdout.print("POS: {:.1} {:.1} {:.1}\n", .{cam_pos.x, cam_pos.y, cam_pos.z});
             try stdout.print("RPM: {:.0}\n", .{@as(u32, @intFromFloat(state.simulation.rpm))});
             try stdout.flush();
         }
