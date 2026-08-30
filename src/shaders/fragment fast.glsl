@@ -311,7 +311,7 @@ float map(vec3 p) {
 
     float scene = MAX_TRAVEL;
 
-    // scene = opUnion(scene, d_block);
+    scene = opUnion(scene, d_block);
     scene = opUnion(scene, d_conrods);
     scene = opUnion(scene, d_pistons);
     scene = opUnion(scene, d_rings);
