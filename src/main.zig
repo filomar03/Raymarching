@@ -342,8 +342,9 @@ fn moveCamera(window: *glfw.Window) void {
     const up: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.e) == glfw.Action.press));
     const down: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.q) == glfw.Action.press));
     const jump: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.space) == glfw.Action.press));
+    const crouch: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.left_control) == glfw.Action.press));
 
-    const world_mov: glm.Vec3 = .{ .x = 0, .y = jump * cam_speed.y, .z = 0 };
+    const world_mov: glm.Vec3 = .{ .x = 0, .y = (jump + -crouch) * cam_speed.y, .z = 0 };
     const cam_mov: glm.Vec3 = .{ .x = right + -left, .y = up + -down, .z = forward + -backwards };
     var cam_forward = state.camera.rotation.rotateVec(cam_mov);
 
