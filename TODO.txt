@@ -2,12 +2,11 @@ implementare:
 aggiornare a opengl 4.6
 debug callback
 convertire uniform in ssbo
-calcolare i precompute value in shader una sola volta (condivisi tra i 2 passi)
-spostare calcuoli che possono essere fatti in CPU fuori dalla GPU
+spostare su CPU i calcoli non necessari
 ray packing per i riflessi
-uniform rendering parameters between sahders
-handle dinamic scenes
-attivare visualizzazione debug e cambiare bounce a runtime
+uniformare i parametri tra i 2 passi
+scene con oggetti non hardcoded
+visualizzazione e parametri debug modificabili a runtime
 
 sistemare riflessi sminchiati (riga segnata)
 resizare fb alt quando si resiza finestra
