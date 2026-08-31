@@ -473,6 +473,7 @@ void main()
 
     vec2 uv = gl_FragCoord.xy / uResolution;
     float approx_dist = texture(uSampler, uv).r;
+    // float approx_dist = 0;
 
     vec3 p = uCamPos;
     vec3 ray = normalize(rotate(uCamRot, vec3(ndc, 1))); // near is set to 1, since changing it doesn't affect the rendering (for now)
@@ -549,8 +550,8 @@ void main()
 
             if (mat.reflectivity > 0.0) {
                 ray = normalize(reflect(ray, norm));
-                observer_position = p; // PENSO SIA QUESTA LA LINEA CHE SMINCHIA I RIFLESSI
-                p += ray * NUDGE;
+                observer_position = p;
+                // p += ray * NUDGE;
 
                 ray_energy *= mat.reflectivity;
             } else {
