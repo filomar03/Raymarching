@@ -28,10 +28,10 @@ uniform sampler2D uSampler;
 // #define CEL_SHADING
 #define CEL_SHADING_Q 3
 
-#define DEBUG_BOUNCE 1
-// #define DEBUG_STEPS
-// #define DEBUG_TARGET_STEPS 100
-#define DEBUG_NORMS
+// #define DEBUG_BOUNCE 0
+#define DEBUG_STEPS
+#define DEBUG_TARGET_STEPS 50
+// #define DEBUG_NORMS
 // #define DEBUG_REFLECTIONS
 
 // Structs
@@ -486,27 +486,32 @@ void main()
         HitInfo hit = rayMarch(p, ray);
         p += ray * hit.travel;
 
-#ifdef DEBUG_BOUNCE
-        if (bounce == DEBUG_BOUNCE) {
-#endif
-#ifdef DEBUG_STEPS
-            FragColor = vec4(step(DEBUG_TARGET_STEPS, hit.steps), hit.steps / DEBUG_TARGET_STEPS * step(hit.steps, DEBUG_TARGET_STEPS), 0, 1);
-            return;
-#endif
-#ifdef DEBUG_NORMS
-            FragColor = vec4(approx_norm(p), 1);
-            return;
-#endif
-#ifdef DEBUG_REFLECTIONS
-            FragColor = vec4(normalize(reflect(ray, approx_norm(p))), 1);
-            return;
-#endif
-#ifdef DEBUG_BOUNCE
-        }
-#endif
 
 
         if (hit.reason == HIT) {
+#ifdef DEBUG_BOUNCE
+            if (bounce == DEBUG_BOUNCE) {
+#endif
+#ifdef DEBUG_STEPS
+                float step_depth_good = hit.steps / DEBUG_TARGET_STEPS;
+                float step_depth_bad = (hit.steps - DEBUG_TARGET_STEPS) / MAX_STEP;
+                float step_good = step(hit.steps, DEBUG_TARGET_STEPS + 1); // dovrebbe restituire 1 solo quando hit.step < DEBUG_TARGET_STEP altrimenti 0
+                float step_bad = step(DEBUG_TARGET_STEPS, hit.steps); // dovrebbe restituire 1 solo quando hit.step < DEBUG_TARGET_STEP altrimenti 0
+                FragColor = vec4(step_bad, step_good * step_depth_good, 0, 1);
+                return;
+#endif
+#ifdef DEBUG_NORMS
+                FragColor = vec4(approx_norm(p), 1);
+                return;
+#endif
+#ifdef DEBUG_REFLECTIONS
+                FragColor = vec4(normalize(reflect(ray, approx_norm(p))), 1);
+                return;
+#endif
+#ifdef DEBUG_BOUNCE
+            }
+#endif
+
             vec3 norm = approx_norm(p);
             Material mat = mats[hit.mat_index];
 

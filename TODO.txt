@@ -7,6 +7,7 @@ spostare calcuoli che possono essere fatti in CPU fuori dalla GPU
 ray packing per i riflessi
 uniform rendering parameters between sahders
 handle dinamic scenes
+attivare visualizzazione debug e cambiare bounce a runtime
 
 sistemare riflessi sminchiati (riga segnata)
 resizare fb alt quando si resiza finestra
