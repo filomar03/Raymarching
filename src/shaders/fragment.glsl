@@ -11,28 +11,26 @@ uniform float uCrankAngle;
 
 uniform sampler2D uSampler;
 
-// Rendering params
+// - RENDERING PARAMS
 #define HIT_DISTANCE 0.0001
-#define MAX_STEP 50
-#define MAX_TRAVEL 1000
+#define MAX_STEP 100
+#define MAX_TRAVEL 30
 #define EPSILON 0.001
 #define MAX_BOUNCE 2
-#define NUDGE 0.01
+// #define NUDGE 0.1
 
-#define HIT 0
-#define FAR 1
-#define OUT_OF_STEPS 2
-
-// #define CRT_EFFECT
-
-// #define CEL_SHADING
-#define CEL_SHADING_Q 3
-
-// #define DEBUG_BOUNCE 0
-// #define DEBUG_STEPS
-// #define DEBUG_TARGET_STEPS 10
+// - DEBUG PARAMS
+// #define DEBUG_SKIP_DEPTH_TEX
+#define DEBUG_BOUNCE 0
+// #define DEBUG_DEPTH
+#define DEBUG_STEPS
 // #define DEBUG_NORMS
 // #define DEBUG_REFLECTIONS
+
+// - EFFECTS
+// #define CRT_EFFECT
+// #define CEL_SHADING
+// #define CEL_SHADING_Q 7
 
 // Structs
 struct Light {
@@ -60,11 +58,17 @@ struct HitInfo {
     int mat_index;
 };
 
-// Scene constants
+// - HitInfo reason set
+#define HIT 0
+#define FAR 1
+#define OUT_OF_STEPS 2
+
+// - COLORS
 #define COLOR_OUT_OF_STEP vec3(255, 0, 123) / 255
-#define COLOR_SKY_BOX vec3(58, 74, 64) / 255
+#define COLOR_SKY_BOX vec3(16) / 255
 #define COLOR_LIGHT vec3(1.0, 0.92, 0.75)
 
+// - LIGHTS
 #define DIR_LIGHT 99999999
 #define AMBIENT_I 0.2
 Light lights[] = Light[](
@@ -72,13 +76,7 @@ Light lights[] = Light[](
     Light(normalize(vec3(1.0, 3.0, -1.0)) * DIR_LIGHT, false, COLOR_LIGHT, 0.25)
 );
 
-#define MAT_BLOCK        0
-#define MAT_PISTON       1
-#define MAT_CONROD       2
-#define MAT_CRANKSHAFT   3
-#define MAT_RINGS        4
-#define MAT_GEARS        5
-
+// - MATERIALS
 Material mats[] = Material[](
     Material(vec3(0.28, 0.29, 0.31), 0, 0.01),
     Material(vec3(0.85, 0.86, 0.88), 2048, 0.25),
@@ -87,6 +85,13 @@ Material mats[] = Material[](
     Material(vec3(0.12, 0.12, 0.13), 16, 0.05),
     Material(vec3(0.45, 0.46, 0.45), 16, 0.15)
 );
+
+#define MAT_BLOCK        0
+#define MAT_PISTON       1
+#define MAT_CONROD       2
+#define MAT_CRANKSHAFT   3
+#define MAT_RINGS        4
+#define MAT_GEARS        5
 
 // Shape operations
 float opUnion(float a, float b) {
@@ -470,7 +475,11 @@ void main()
     ndc.x *= aspect_ratio; // scale x to maintain ratio
 
     vec2 uv = gl_FragCoord.xy / uResolution;
+#ifdef DEBUG_SKIP_DEPTH_TEX
+    float approx_dist = 0;
+#else
     float approx_dist = texture(uSampler, uv).r;
+#endif
 
     vec3 p = uCamPos;
     vec3 ray = normalize(rotate(uCamRot, vec3(ndc, 1))); // near is set to 1, since changing it doesn't affect the rendering (for now)
@@ -487,21 +496,27 @@ void main()
 #ifdef DEBUG_BOUNCE
         if (bounce == DEBUG_BOUNCE) {
 #endif
+#ifdef DEBUG_DEPTH
+            FragColor = vec4(vec3(1 - hit.travel / MAX_TRAVEL), 1);
+            return;
+#endif
 #ifdef DEBUG_STEPS
-            float step_good = 1 - (min(hit.steps, DEBUG_TARGET_STEPS) / DEBUG_TARGET_STEPS);
-            float step_bad = (max(hit.steps - (DEBUG_TARGET_STEPS - 1), 0)) / MAX_STEP;
-            FragColor = vec4(COLOR_OUT_OF_STEP * step_bad + (1 - COLOR_OUT_OF_STEP) * step_good, 1);
+            float step_ratio = hit.steps / MAX_STEP;
+            float budget_exceed = step(MAX_STEP, hit.steps);
+            vec3 step_color = step_ratio * (1 - COLOR_OUT_OF_STEP);
+            vec3 final_color = mix(step_color, COLOR_OUT_OF_STEP, budget_exceed);
+            FragColor = vec4(final_color, 1.0);
             return;
 #endif
 #ifdef DEBUG_NORMS
-            if (hit.reason == HIT) {
-                FragColor = vec4(approx_norm(p), 1);
+            if (hit.reason != FAR) {
+                FragColor = vec4(abs(approx_norm(p)), 1);
                 return;
             }
 #endif
 #ifdef DEBUG_REFLECTIONS
-            if (hit.reason == HIT) {
-                FragColor = vec4(normalize(reflect(ray, approx_norm(p))), 1);
+            if (hit.reason != FAR) {
+                FragColor = vec4(abs(normalize(reflect(ray, approx_norm(p)))), 1);
                 return;
             }
 #endif
@@ -537,9 +552,9 @@ void main()
                 }
 
                 float local_light = clamp(ambient + diffuse, 0.0, 1.0);
-                #ifdef CEL_SHADING
+#ifdef CEL_SHADING
                 local_light = floor(local_light * CEL_SHADING_Q) / CEL_SHADING_Q;
-                #endif
+#endif
 
                 vec3 color = local_light * mat.color + specular;
                 final_color += color * absorbtion * ray_energy;
@@ -548,7 +563,9 @@ void main()
             if (mat.reflectivity > 0.0) {
                 ray = normalize(reflect(ray, norm));
                 observer_position = p;
-                // p += ray * NUDGE;
+                p += ray * 0.1;
+
+
 
                 ray_energy *= mat.reflectivity;
             } else {

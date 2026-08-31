@@ -7,6 +7,7 @@ ray packing per i riflessi
 uniformare i parametri tra i 2 passi
 scene con oggetti non hardcoded
 visualizzazione e parametri debug modificabili a runtime
+info in finestra invece che in console (dove ci sara il log)
 
 sistemare riflessi sminchiati (riga segnata)
 resizare fb alt quando si resiza finestra
