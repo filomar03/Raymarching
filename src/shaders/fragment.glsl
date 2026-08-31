@@ -473,14 +473,12 @@ void main()
 
     vec3 p = uCamPos;
     vec3 ray = normalize(rotate(uCamRot, vec3(ndc, 1))); // near is set to 1, since changing it doesn't affect the rendering (for now)
-    p += ray * approx_dist;
     vec3 observer_position = uCamPos;
     p += ray * approx_dist;
 
     float ray_energy = 1.0;
     vec3 final_color;
 
-    computeFrameValues();
     for (int bounce = 0; bounce < MAX_BOUNCE; bounce++) {
         HitInfo hit = rayMarch(p, ray);
         p += ray * hit.travel;
