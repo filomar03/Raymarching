@@ -1,5 +1,5 @@
 // Parametri rendering
-const RES_REDUCTION = 2;
+const RES_REDUCTION = 5;
 
 // Parametri finestra
 const WINDOW_WIDTH = 800;

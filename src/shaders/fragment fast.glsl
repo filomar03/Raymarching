@@ -12,9 +12,9 @@ uniform float uCrankAngle;
 out float Distance;
 
 // Rendering params
-#define HIT_DISTANCE 0.0001
-#define MAX_STEP 3000
-#define MAX_TRAVEL 1000.0
+#define HIT_DISTANCE 0.001
+#define MAX_STEP 10000
+#define MAX_TRAVEL 30.0
 
 // Shape operations
 float opUnion(float a, float b) {
@@ -351,6 +351,8 @@ float rayMarch(vec3 starting_point, vec3 ray) {
 
 void main()
 {
+    computeFrameValues();
+
     float aspect_ratio = uResolution.x / uResolution.y;
     float tan_half_fov = tan(radians(uFov * 0.5)); // projection plane half height over near distance factor
     vec2 uv = gl_FragCoord.xy / uResolution * 2.0 - 1; // normalize
