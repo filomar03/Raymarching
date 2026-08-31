@@ -324,10 +324,10 @@ vec3 rotate(vec4 q, vec3 p) { // fast formula to rotate a point with a unit quat
     return p + 2 * q.w * cross(q.xyz, p) + 2 * cross(q.xyz, cross(q.xyz, p));
 }
 
-float rayMarch(vec3 starting_point, vec3 ray, float start_travel, int start_step) {
+float rayMarch(vec3 starting_point, vec3 ray) {
     vec3 p = starting_point;
-    float travel = start_travel;
-    int step = start_step;
+    float travel = 0;
+    int step = 0;
 
     while (step < MAX_STEP) {
         float scene = map(p);
@@ -362,5 +362,5 @@ void main()
     vec3 observer_position = uCamPos;
 
     computeFrameValues();
-    Distance = rayMarch(p, ray, 0, 0);
+    Distance = rayMarch(p, ray);
 }
