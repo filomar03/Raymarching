@@ -363,6 +363,5 @@ void main()
     vec3 ray = normalize(rotate(uCamRot, vec3(uv, 1))); // near is set to 1, since changing it doesn't affect the rendering (for now)
     vec3 observer_position = uCamPos;
 
-    computeFrameValues();
     Distance = rayMarch(p, ray);
 }
