@@ -414,7 +414,7 @@ fn scrollCallback(window: *glfw.Window, x_offset: f64, y_offset: f64) callconv(.
     _ = x_offset;
     const scroll = @as(f32, @floatCast(y_offset));
 
-    if (glfw.getKey(window, glfw.Key.left_control) != glfw.Action.press) {
+    if (glfw.getKey(window, glfw.Key.left_shift) != glfw.Action.press) {
         adjustCamFov(scroll);
     } else {
         cam_speed_mod = std.math.clamp(cam_speed_mod + scroll * CAM_SPEED_MOD_DEF, 0.1, 10.0);
