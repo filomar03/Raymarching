@@ -129,7 +129,7 @@ float sdGear(vec3 p, float r, float w, float teeth, float td, float angle) {
 #define A_NUDGE 0.1
 
 // Constant engine parameters
-const vec3 abs_eng_position = vec3(0.0, -3.0, 1.0);
+const vec3 abs_eng_position = vec3(0.0, -1.0, 3.0);
 const float phases[4] = float[](0.0, 1.57079, 4.71238, 3.14159);
 
 const float cylinder_spacing = 0.2;
