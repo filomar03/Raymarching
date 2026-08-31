@@ -13,7 +13,7 @@ uniform sampler2D uSampler;
 
 // Rendering params
 #define HIT_DISTANCE 0.0001
-#define MAX_STEP 3000
+#define MAX_STEP 50
 #define MAX_TRAVEL 1000
 #define EPSILON 0.001
 #define MAX_BOUNCE 2
@@ -29,8 +29,8 @@ uniform sampler2D uSampler;
 #define CEL_SHADING_Q 3
 
 // #define DEBUG_BOUNCE 0
-#define DEBUG_STEPS
-#define DEBUG_TARGET_STEPS 50
+// #define DEBUG_STEPS
+// #define DEBUG_TARGET_STEPS 10
 // #define DEBUG_NORMS
 // #define DEBUG_REFLECTIONS
 
@@ -61,10 +61,8 @@ struct HitInfo {
 };
 
 // Scene constants
-#define COLOR_OUT_OF_STEP vec3(0, 1, 0)
-// #define COLOR_OUT_OF_STEP vec3(0, 1, 0)
-#define COLOR_SKY_BOX vec3(0.4, 0.2, 0.2)
-// #define COLOR_SKY_BOX vec3(213, 227, 229) / 255.0
+#define COLOR_OUT_OF_STEP vec3(255, 0, 123) / 255
+#define COLOR_SKY_BOX vec3(58, 74, 64) / 255
 #define COLOR_LIGHT vec3(1.0, 0.92, 0.75)
 
 #define DIR_LIGHT 99999999
@@ -473,7 +471,6 @@ void main()
 
     vec2 uv = gl_FragCoord.xy / uResolution;
     float approx_dist = texture(uSampler, uv).r;
-    // float approx_dist = 0;
 
     vec3 p = uCamPos;
     vec3 ray = normalize(rotate(uCamRot, vec3(ndc, 1))); // near is set to 1, since changing it doesn't affect the rendering (for now)
@@ -487,32 +484,32 @@ void main()
         HitInfo hit = rayMarch(p, ray);
         p += ray * hit.travel;
 
-
-
-        if (hit.reason == HIT) {
 #ifdef DEBUG_BOUNCE
-            if (bounce == DEBUG_BOUNCE) {
+        if (bounce == DEBUG_BOUNCE) {
 #endif
 #ifdef DEBUG_STEPS
-                float step_depth_good = hit.steps / DEBUG_TARGET_STEPS;
-                float step_depth_bad = (hit.steps - DEBUG_TARGET_STEPS) / MAX_STEP;
-                float step_good = step(hit.steps, DEBUG_TARGET_STEPS + 1); // dovrebbe restituire 1 solo quando hit.step < DEBUG_TARGET_STEP altrimenti 0
-                float step_bad = step(DEBUG_TARGET_STEPS, hit.steps); // dovrebbe restituire 1 solo quando hit.step < DEBUG_TARGET_STEP altrimenti 0
-                FragColor = vec4(step_bad, step_good * step_depth_good, 0, 1);
-                return;
+            float step_good = 1 - (min(hit.steps, DEBUG_TARGET_STEPS) / DEBUG_TARGET_STEPS);
+            float step_bad = (max(hit.steps - (DEBUG_TARGET_STEPS - 1), 0)) / MAX_STEP;
+            FragColor = vec4(COLOR_OUT_OF_STEP * step_bad + (1 - COLOR_OUT_OF_STEP) * step_good, 1);
+            return;
 #endif
 #ifdef DEBUG_NORMS
+            if (hit.reason == HIT) {
                 FragColor = vec4(approx_norm(p), 1);
                 return;
-#endif
-#ifdef DEBUG_REFLECTIONS
-                FragColor = vec4(normalize(reflect(ray, approx_norm(p))), 1);
-                return;
-#endif
-#ifdef DEBUG_BOUNCE
             }
 #endif
+#ifdef DEBUG_REFLECTIONS
+            if (hit.reason == HIT) {
+                FragColor = vec4(normalize(reflect(ray, approx_norm(p))), 1);
+                return;
+            }
+#endif
+#ifdef DEBUG_BOUNCE
+        }
+#endif
 
+        if (hit.reason == HIT) {
             vec3 norm = approx_norm(p);
             Material mat = mats[hit.mat_index];
 
@@ -559,13 +556,11 @@ void main()
             }
         }
         else if (hit.reason == FAR) {
-            final_color = COLOR_SKY_BOX;
-            // final_color += COLOR_SKY_BOX * ray_energy;
+            final_color += COLOR_SKY_BOX * ray_energy;
             break;
         }
         else if (hit.reason == OUT_OF_STEPS) {
-            final_color = COLOR_OUT_OF_STEP;
-            // final_color += COLOR_OUT_OF_STEP * ray_energy;
+            final_color += COLOR_OUT_OF_STEP * ray_energy;
             break;
         }
     }
