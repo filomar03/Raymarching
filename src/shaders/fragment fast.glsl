@@ -12,10 +12,9 @@ uniform float uCrankAngle;
 out float Distance;
 
 // Rendering params
-#define HIT_DISTANCE 0.001
+#define HIT_DISTANCE 0.0001
 #define MAX_STEP 3000
-#define MAX_TRAVEL 1000
-#define NUDGE 0.01
+#define MAX_TRAVEL 1000.0
 
 // Shape operations
 float opUnion(float a, float b) {
