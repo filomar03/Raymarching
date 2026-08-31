@@ -13,7 +13,7 @@ out float Distance;
 
 // Rendering params
 #define HIT_DISTANCE 0.001
-#define MAX_STEP 10000
+#define MAX_STEP 1000
 #define MAX_TRAVEL 30.0
 
 // Shape operations

@@ -12,17 +12,17 @@ uniform sampler2D uSampler;
 
 // - RENDERING PARAMS
 #define HIT_DISTANCE 0.0001
-#define MAX_STEP 100
+#define MAX_STEP 300
 #define MAX_TRAVEL 30
 #define EPSILON 0.001
-#define MAX_BOUNCE 2
-// #define NUDGE 0.1
+#define MAX_BOUNCE 1
+#define REFLECT_DISPLACMENT 0.01
 
 // - DEBUG PARAMS
 // #define DEBUG_SKIP_DEPTH_TEX
-#define DEBUG_BOUNCE 0
+// #define DEBUG_BOUNCE 0
 // #define DEBUG_DEPTH
-#define DEBUG_STEPS
+// #define DEBUG_STEPS
 // #define DEBUG_NORMS
 // #define DEBUG_REFLECTIONS
 
@@ -562,9 +562,7 @@ void main()
             if (mat.reflectivity > 0.0) {
                 ray = normalize(reflect(ray, norm));
                 observer_position = p;
-                p += ray * 0.1;
-
-
+                p += ray * REFLECT_DISPLACMENT;
 
                 ray_energy *= mat.reflectivity;
             } else {

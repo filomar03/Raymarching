@@ -9,7 +9,7 @@ scene con oggetti non hardcoded
 visualizzazione e parametri debug modificabili a runtime
 info in finestra invece che in console (dove ci sara il log)
 
-sistemare riflessi sminchiati (riga segnata)
+immagine si sgrana quando primo passo a risoluzioine piu bassa
 resizare fb alt quando si resiza finestra
 sistemare pin meno sporgente
 sistemare asta pin piu in alto
