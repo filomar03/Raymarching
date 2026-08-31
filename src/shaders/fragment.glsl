@@ -16,7 +16,7 @@ uniform sampler2D uSampler;
 #define MAX_STEP 3000
 #define MAX_TRAVEL 1000
 #define EPSILON 0.001
-#define MAX_BOUNCE 1
+#define MAX_BOUNCE 2
 #define NUDGE 0.01
 
 #define HIT 0
@@ -28,8 +28,11 @@ uniform sampler2D uSampler;
 // #define CEL_SHADING
 #define CEL_SHADING_Q 3
 
+#define DEBUG_BOUNCE 1
 // #define DEBUG_STEPS
-#define DEBUG_TARGET_STEPS 100
+// #define DEBUG_TARGET_STEPS 100
+#define DEBUG_NORMS
+// #define DEBUG_REFLECTIONS
 
 // Structs
 struct Light {
@@ -483,10 +486,25 @@ void main()
         HitInfo hit = rayMarch(p, ray);
         p += ray * hit.travel;
 
-#ifdef DEBUG_STEPS
-        FragColor = vec4(step(DEBUG_TARGET_STEPS, hit.steps), hit.steps / DEBUG_TARGET_STEPS * step(hit.steps, DEBUG_TARGET_STEPS), 0, 1);
-        return;
+#ifdef DEBUG_BOUNCE
+        if (bounce == DEBUG_BOUNCE) {
 #endif
+#ifdef DEBUG_STEPS
+            FragColor = vec4(step(DEBUG_TARGET_STEPS, hit.steps), hit.steps / DEBUG_TARGET_STEPS * step(hit.steps, DEBUG_TARGET_STEPS), 0, 1);
+            return;
+#endif
+#ifdef DEBUG_NORMS
+            FragColor = vec4(approx_norm(p), 1);
+            return;
+#endif
+#ifdef DEBUG_REFLECTIONS
+            FragColor = vec4(normalize(reflect(ray, approx_norm(p))), 1);
+            return;
+#endif
+#ifdef DEBUG_BOUNCE
+        }
+#endif
+
 
         if (hit.reason == HIT) {
             vec3 norm = approx_norm(p);
