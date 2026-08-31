@@ -50,7 +50,7 @@ pub const OpenGL = struct {
         fragment: [2]c_uint,
         program: [2]c_uint,
         alt_fb: c_uint,
-        fb_size: [2][2]f32,
+        fb_size: [2][2]c_int,
     };
 
     pub const UniformLocations = struct {

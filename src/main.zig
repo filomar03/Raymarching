@@ -1,5 +1,5 @@
 // Parametri rendering
-const RES_REDUCTION = 1.0 / 3.0;
+const RES_REDUCTION = 3;
 
 // Parametri finestra
 const WINDOW_WIDTH = 800;
@@ -184,8 +184,8 @@ fn setupPipeline(shaders: Shaders, window: *glfw.Window) !void {
     gl.bindTexture(gl.TEXTURE_2D, depth_tex);
     // configuro 2d image texture
     const fb_size_red: [2]c_int = .{
-        @intFromFloat(@as(gl.Float, @floatFromInt(fb_size[0])) * RES_REDUCTION),
-        @intFromFloat(@as(gl.Float, @floatFromInt(fb_size[1])) * RES_REDUCTION)
+        @intFromFloat(@trunc(@as(gl.Float, @floatFromInt(fb_size[0])) / RES_REDUCTION)),
+        @intFromFloat(@trunc(@as(gl.Float, @floatFromInt(fb_size[1])) / RES_REDUCTION))
     };
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, fb_size_red[0], fb_size_red[1], 0, gl.RED, gl.FLOAT, null);
 
@@ -207,11 +207,8 @@ fn setupPipeline(shaders: Shaders, window: *glfw.Window) !void {
         .program = .{program1, program2},
         .alt_fb = fb,
         .fb_size = .{
-            .{
-                @as(f32, @floatFromInt(fb_size[0])) * RES_REDUCTION,
-                @as(f32, @floatFromInt(fb_size[1])) * RES_REDUCTION
-            },
-            .{@floatFromInt(fb_size[0]), @floatFromInt(fb_size[1])},
+            .{fb_size_red[0], fb_size_red[1]},
+            .{fb_size[0], fb_size[1]},
         }
     };
 
@@ -289,24 +286,14 @@ pub fn main() !void {
         gl.bindFramebuffer(gl.FRAMEBUFFER, pipeline.alt_fb);
         gl.useProgram(pipeline.program[0]);
         updateUniforms(unifs[0], 0);
-        gl.viewport(
-            0,
-            0,
-            @as(c_int, @intFromFloat(pipeline.fb_size[0][0])),
-            @as(c_int, @intFromFloat(pipeline.fb_size[0][1]))
-        );
+        gl.viewport(0, 0, pipeline.fb_size[0][0], pipeline.fb_size[0][1]);
         gl.drawArrays(gl.TRIANGLES, 0, canvas.len / VERT_SIZE);
 
         // 2nd pass
         gl.bindFramebuffer(gl.FRAMEBUFFER, 0);
         gl.useProgram(pipeline.program[1]);
         updateUniforms(unifs[1], 1);
-        gl.viewport(
-            0,
-            0,
-            @as(c_int, @intFromFloat(pipeline.fb_size[1][0])),
-            @as(c_int, @intFromFloat(pipeline.fb_size[1][1]))
-        );
+        gl.viewport(0, 0, pipeline.fb_size[1][0], pipeline.fb_size[1][1]);
         gl.drawArrays(gl.TRIANGLES, 0, canvas.len / VERT_SIZE);
 
         window.swapBuffers();
@@ -335,7 +322,7 @@ fn getInput(window: *glfw.Window) void {
 
 fn updateUniforms(locations: engine.OpenGL.UniformLocations, pass: u32) void {
     const fb_size = state.*.opengl.pipeline.?.fb_size;
-    gl.uniform2f(locations.resolution, fb_size[pass][0], fb_size[pass][1]);
+    gl.uniform2f(locations.resolution, @as(f32, @floatFromInt(fb_size[pass][0])), @as(f32, @floatFromInt(fb_size[pass][1])));
     gl.uniform3fv(locations.cam_pos, 1, &state.camera.position.toArray());
     const rot = &state.*.camera.rotation;
     gl.uniform4f(locations.cam_rot, rot.*.i, rot.*.j, rot.*.k, rot.*.w);
@@ -437,8 +424,11 @@ fn scrollCallback(window: *glfw.Window, x_offset: f64, y_offset: f64) callconv(.
 fn fbResizeCallback(window: *glfw.Window, width: c_int, height: c_int) callconv(.c) void {
     _ = window;
 
-    state.opengl.pipeline.?.fb_size[0][0] = @as(f32, @floatFromInt(width)) * RES_REDUCTION;
-    state.opengl.pipeline.?.fb_size[0][1] = @as(f32, @floatFromInt(height)) * RES_REDUCTION;
-    state.opengl.pipeline.?.fb_size[1][0] = @floatFromInt(width);
-    state.opengl.pipeline.?.fb_size[1][1] = @floatFromInt(height);
+    // TODO!!!!
+    // resizare texture framebuffer
+
+    state.opengl.pipeline.?.fb_size[0][0] = @intFromFloat(@trunc(@as(f32, @floatFromInt(width)) / RES_REDUCTION));
+    state.opengl.pipeline.?.fb_size[0][1] = @intFromFloat(@trunc(@as(f32, @floatFromInt(height)) / RES_REDUCTION));
+    state.opengl.pipeline.?.fb_size[1][0] = width;
+    state.opengl.pipeline.?.fb_size[1][1] = height;
 }
