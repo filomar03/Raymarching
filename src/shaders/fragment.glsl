@@ -8,7 +8,6 @@ uniform float uFov;
 uniform vec3 uCamPos;
 uniform vec4 uCamRot;
 uniform float uCrankAngle;
-
 uniform sampler2D uSampler;
 
 // - RENDERING PARAMS
