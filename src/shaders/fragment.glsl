@@ -14,7 +14,7 @@ uniform sampler2D uSampler;
 // Rendering params
 #define HIT_DISTANCE 0.0001
 #define MAX_STEP 3000
-#define MAX_TRAVEL 10000.0
+#define MAX_TRAVEL 1000
 #define EPSILON 0.001
 #define MAX_BOUNCE 1
 #define NUDGE 0.01
@@ -433,10 +433,10 @@ vec3 rotate(vec4 q, vec3 p) { // fast formula to rotate a point with a unit quat
     return p + 2 * q.w * cross(q.xyz, p) + 2 * cross(q.xyz, cross(q.xyz, p));
 }
 
-HitInfo rayMarch(vec3 starting_point, vec3 ray, float start_travel, int start_step) {
+HitInfo rayMarch(vec3 starting_point, vec3 ray) {
     vec3 p = starting_point;
-    float travel = start_travel;
-    int step = start_step;
+    int step = 0;
+    float travel = 0;
 
     while (step < MAX_STEP) {
         SceneInfo scene = map(p);
@@ -460,6 +460,8 @@ HitInfo rayMarch(vec3 starting_point, vec3 ray, float start_travel, int start_st
 
 void main()
 {
+    computeFrameValues(); // This computes constant that mantain their values for the entire frame, it has to be done this way cause the model is hardcoded in shader
+
     float aspect_ratio = uResolution.x / uResolution.y;
     float tan_half_fov = tan(radians(uFov / 2)); // projection plane half height over near distance factor
     vec2 ndc = gl_FragCoord.xy / uResolution * 2.0 - 1; // normalize
@@ -473,13 +475,14 @@ void main()
     vec3 ray = normalize(rotate(uCamRot, vec3(ndc, 1))); // near is set to 1, since changing it doesn't affect the rendering (for now)
     p += ray * approx_dist;
     vec3 observer_position = uCamPos;
+    p += ray * approx_dist;
 
     float ray_energy = 1.0;
     vec3 final_color;
 
     computeFrameValues();
     for (int bounce = 0; bounce < MAX_BOUNCE; bounce++) {
-        HitInfo hit = rayMarch(p, ray, approx_dist, 0);
+        HitInfo hit = rayMarch(p, ray);
         p += ray * hit.travel;
 
 #ifdef DEBUG_STEPS
@@ -525,7 +528,7 @@ void main()
 
             if (mat.reflectivity > 0.0) {
                 ray = normalize(reflect(ray, norm));
-                observer_position = p;
+                observer_position = p; // PENSO SIA QUESTA LA LINEA CHE SMINCHIA I RIFLESSI
                 p += ray * NUDGE;
 
                 ray_energy *= mat.reflectivity;

@@ -8,8 +8,7 @@ ray packing per i riflessi
 uniform rendering parameters between sahders
 handle dinamic scenes
 
-sistemare travel mantenuto tra i 2 passi
-sistemare fatto che da lontano e tutto pixeloso
-aggiungere world down (Ctrl)
+sistemare riflessi sminchiati (riga segnata)
+resizare fb alt quando si resiza finestra
 sistemare pin meno sporgente
 sistemare asta pin piu in alto
