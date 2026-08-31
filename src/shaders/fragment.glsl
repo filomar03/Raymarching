@@ -28,6 +28,9 @@ uniform sampler2D uSampler;
 // #define CEL_SHADING
 #define CEL_SHADING_Q 3
 
+// #define DEBUG_STEPS
+#define DEBUG_TARGET_STEPS 100
+
 // Structs
 struct Light {
     vec3 position;
@@ -50,6 +53,7 @@ struct SceneInfo {
 struct HitInfo {
     int reason;
     float travel;
+    float steps;
     int mat_index;
 };
 
@@ -441,17 +445,17 @@ HitInfo rayMarch(vec3 starting_point, vec3 ray, float start_travel, int start_st
         p += ray * scene.distance;
 
         if (scene.distance <= HIT_DISTANCE) {
-            return HitInfo(HIT, travel, scene.mat_index);
+            return HitInfo(HIT, travel, step, scene.mat_index);
         }
 
         if (travel > MAX_TRAVEL) { // entro un certo range per compensare la precione diversa dei 2 passi
-            return HitInfo(FAR, travel, scene.mat_index);
+            return HitInfo(FAR, travel, step, scene.mat_index);
         }
 
         step += 1;
     }
 
-    return HitInfo(OUT_OF_STEPS, travel, -1);
+    return HitInfo(OUT_OF_STEPS, travel, step, -1);
 }
 
 void main()
@@ -477,6 +481,11 @@ void main()
     for (int bounce = 0; bounce < MAX_BOUNCE; bounce++) {
         HitInfo hit = rayMarch(p, ray, approx_dist, 0);
         p += ray * hit.travel;
+
+#ifdef DEBUG_STEPS
+        FragColor = vec4(step(DEBUG_TARGET_STEPS, hit.steps), hit.steps / DEBUG_TARGET_STEPS * step(hit.steps, DEBUG_TARGET_STEPS), 0, 1);
+        return;
+#endif
 
         if (hit.reason == HIT) {
             vec3 norm = approx_norm(p);
