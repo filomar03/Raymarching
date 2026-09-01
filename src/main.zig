@@ -270,6 +270,9 @@ pub fn main() !void {
     defer gl.deleteProgram(pipeline.program[0]);
     defer gl.deleteProgram(pipeline.program[1]);
 
+    // Camera in posizione piu ottimale
+    state.*.camera.position = .{.x = 5.8, .y = 0.0, .z = 1.1};
+    state.*.camera.rotation = glm.Quaternion.normalize(.{.i = 0.014, .j = -0.46, .k = 0.007, .w = 0.888});
 
     const unifs = &state.opengl.uniforms.?;
     gl.uniform1i(unifs[1].depth_tex, 0);
@@ -316,8 +319,9 @@ pub fn main() !void {
 }
 
 fn getInput(window: *glfw.Window) void {
-    moveCamera(window);
-    rotateCamera(window);
+    // Disabilitati per testare diffferenze visive con parametri diversi
+    // moveCamera(window);
+    // rotateCamera(window);
     sim.modifyRpm(window);
     detectQuit(window);
 }
