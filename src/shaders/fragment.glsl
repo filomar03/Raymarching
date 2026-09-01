@@ -500,6 +500,10 @@ void main()
             return;
 #endif
 #ifdef DEBUG_STEPS
+            // temporaneamente far ritornare scene.distance invece di hit.steps, cosi da vedere quali sono negativi
+            FragColor = vec4(mix(vec3(1, 0, 0), vec3(0, 1, 0), step(0, hit.steps)), 1);
+            return;
+
             float step_ratio = hit.steps / MAX_STEP;
             float budget_exceed = step(MAX_STEP, hit.steps);
             vec3 step_color = step_ratio * (1 - COLOR_OUT_OF_STEP);

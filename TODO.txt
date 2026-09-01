@@ -9,7 +9,7 @@ scene con oggetti non hardcoded
 visualizzazione e parametri debug modificabili a runtime
 info in finestra invece che in console (dove ci sara il log)
 
-immagine si sgrana quando primo passo a risoluzioine piu bassa
+immagine si sgrana quando primo passo a risoluzioine piu bassa (probabilmente overshoot del primo passo, scene.dist negativa -> < HIT_DIST quindi viene considerata come valida invece che tornare indietro)
 resizare fb alt quando si resiza finestra
 sistemare pin meno sporgente
 sistemare asta pin piu in alto
