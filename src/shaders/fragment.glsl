@@ -22,7 +22,8 @@ uniform sampler2D uSampler;
 // #define DEBUG_SKIP_DEPTH_TEX
 // #define DEBUG_BOUNCE 0
 // #define DEBUG_DEPTH
-// #define DEBUG_STEPS
+#define DEBUG_STEPS
+// #define DEBUG_COLLISION
 // #define DEBUG_NORMS
 // #define DEBUG_REFLECTIONS
 
@@ -54,6 +55,7 @@ struct HitInfo {
     int reason;
     float travel;
     float steps;
+    float distance;
     int mat_index;
 };
 
@@ -449,18 +451,18 @@ HitInfo rayMarch(vec3 starting_point, vec3 ray) {
         travel += scene.distance;
         p += ray * scene.distance;
 
-        if (scene.distance <= HIT_DISTANCE) {
-            return HitInfo(HIT, travel, step, scene.mat_index);
+        if (abs(scene.distance) <= HIT_DISTANCE) {
+            return HitInfo(HIT, travel, step, scene.distance, scene.mat_index);
         }
 
-        if (travel > MAX_TRAVEL) { // entro un certo range per compensare la precione diversa dei 2 passi
-            return HitInfo(FAR, travel, step, scene.mat_index);
+        if (travel > MAX_TRAVEL) {
+            return HitInfo(FAR, travel, step, scene.distance, scene.mat_index);
         }
 
         step += 1;
     }
 
-    return HitInfo(OUT_OF_STEPS, travel, step, -1);
+    return HitInfo(OUT_OF_STEPS, travel, step, 1.0 / 0, -1); // return inf+ as distance
 }
 
 void main()
@@ -478,6 +480,8 @@ void main()
     float approx_dist = 0;
 #else
     float approx_dist = texture(uSampler, uv).r;
+    // could introduce a neighbors min filter, use nearest mag filter in case!
+    // running come marching in first step instead
 #endif
 
     vec3 p = uCamPos;
@@ -500,16 +504,19 @@ void main()
             return;
 #endif
 #ifdef DEBUG_STEPS
-            // temporaneamente far ritornare scene.distance invece di hit.steps, cosi da vedere quali sono negativi
-            FragColor = vec4(mix(vec3(1, 0, 0), vec3(0, 1, 0), step(0, hit.steps)), 1);
-            return;
-
             float step_ratio = hit.steps / MAX_STEP;
             float budget_exceed = step(MAX_STEP, hit.steps);
             vec3 step_color = step_ratio * (1 - COLOR_OUT_OF_STEP);
             vec3 final_color = mix(step_color, COLOR_OUT_OF_STEP, budget_exceed);
             FragColor = vec4(final_color, 1.0);
             return;
+#endif
+#ifdef DEBUG_COLLISION
+            if (hit.reason != FAR) {
+                vec3 col = mix(COLOR_OUT_OF_STEP, 1 - COLOR_OUT_OF_STEP, step(0, hit.distance));
+                FragColor = vec4(col, 1);
+                return;
+            }
 #endif
 #ifdef DEBUG_NORMS
             if (hit.reason != FAR) {
