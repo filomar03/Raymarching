@@ -1,8 +1,8 @@
 // Parametri rendering
-const RES_REDUCTION = 5;
+const RES_REDUCTION = 3;
 
 // Parametri finestra
-const WINDOW_WIDTH = 800;
+const WINDOW_WIDTH = 1000;
 const WINDOW_HEIGHT = 800;
 const VSYNC_SETTING = VSYNC_ON;
 
