@@ -1,15 +1,17 @@
 implementare:
+resizare buffer primo passo al resize della finestra
+unificare le shader (avere una shader unica visto che la maggior parte del codice e' condiviso, cosi da compilare primo o secondo passo in base a delle costanti)
+convertire il primo passo in cone marching (forse anche il secondo?) perche facendo un semplice ray marching causa la perdita di informazioni se il primo passo va a risoluzione ridotta rispetto al secondo
 aggiornare a opengl 4.6
 debug callback
 convertire uniform in ssbo
 spostare su CPU i calcoli non necessari
-ray packing per i riflessi
-uniformare i parametri tra i 2 passi
-scene con oggetti non hardcoded
-visualizzazione e parametri debug modificabili a runtime
-info in finestra invece che in console (dove ci sara il log)
+ray packing per i riflessi (praticamente si tratta di unire i punti e i raggi dei riflessi da calcolare, metterli in un buffer e farlo in un passo diverso in modo da non stallare la wavefront calcolandoli al momento)
+gestire scene oggetti non hardcoded
+visualizzazione informazioni come testo rasterizzato sulla finestra invece che in console
+possibilita di cambiare visualizzazione a runtime e alcuni parametri (come rimbalzi)
+ottimizzare la shader
 
-immagine si sgrana quando primo passo a risoluzioine piu bassa (probabilmente overshoot del primo passo, scene.dist negativa -> < HIT_DIST quindi viene considerata come valida invece che tornare indietro)
-resizare fb alt quando si resiza finestra
-sistemare pin meno sporgente
-sistemare asta pin piu in alto
+fix:
+sistemare pin meno sporgente dai bordi del pistone (rientrante rispetto al pistone)
+sistemare asta che connette pistone e conrod piu in alto
