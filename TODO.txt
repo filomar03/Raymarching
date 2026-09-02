@@ -1,5 +1,4 @@
 implementare:
-resizare buffer primo passo al resize della finestra, rendo la finestra non resizabile, meno sbatti e non cambia nulla
 unificare le shader (avere una shader unica visto che la maggior parte del codice e' condiviso, cosi da compilare primo o secondo passo in base a delle costanti)
 aggiornare a opengl 4.6
 debug callback
