@@ -324,6 +324,30 @@ vec3 rotate(vec4 q, vec3 p) { // fast formula to rotate a point with a unit quat
     return p + 2 * q.w * cross(q.xyz, p) + 2 * cross(q.xyz, cross(q.xyz, p));
 }
 
+float coneMarch(vec3 p, vec3 ray) {
+    int step = 0;
+    float travel = 0;
+
+    while (step < MAX_STEP) {
+        float dist = map(p);
+        p += ray * dist;
+        travel += dist;
+
+        // float cone_r = dist * tan(uFov/uResolution.y) * max(1, uResolution.x / uResolution.y);           // cone that touches at least one edge of the pixel
+        float cone_r = dist * tan(uFov/uResolution.y) * sqrt(1 + pow(uResolution.x / uResolution.y, 2)); // cone that touches both edges of the pixel
+
+        if (abs(dist) <= cone_r) {
+            return travel;
+        }
+
+        if (travel > MAX_TRAVEL) {
+            return MAX_TRAVEL;
+        }
+
+        step++;
+    }
+}
+
 float rayMarch(vec3 starting_point, vec3 ray) {
     vec3 p = starting_point;
     float travel = 0;
@@ -363,5 +387,5 @@ void main()
     vec3 ray = normalize(rotate(uCamRot, vec3(uv, 1))); // near is set to 1, since changing it doesn't affect the rendering (for now)
     vec3 observer_position = uCamPos;
 
-    Distance = rayMarch(p, ray);
+    Distance = coneMarch(p, ray);
 }

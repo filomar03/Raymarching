@@ -20,9 +20,10 @@ uniform sampler2D uSampler;
 
 // - DEBUG PARAMS
 // #define DEBUG_SKIP_DEPTH_TEX
+// #define DEBUG_TEX
 // #define DEBUG_BOUNCE 0
 // #define DEBUG_DEPTH
-#define DEBUG_STEPS
+// #define DEBUG_STEPS
 // #define DEBUG_COLLISION
 // #define DEBUG_NORMS
 // #define DEBUG_REFLECTIONS
@@ -496,6 +497,10 @@ void main()
         HitInfo hit = rayMarch(p, ray);
         p += ray * hit.travel;
 
+#ifdef DEBUG_TEX
+        FragColor = vec4(vec3(approx_dist / MAX_TRAVEL), 1);
+        return;
+#endif
 #ifdef DEBUG_BOUNCE
         if (bounce == DEBUG_BOUNCE) {
 #endif
