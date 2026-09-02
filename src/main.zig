@@ -45,6 +45,8 @@ fn createWindow(title: [:0]const u8) !*glfw.Window {
     glfw.windowHint(glfw.WindowHint.context_version_minor, OPENGL_MINOR);
     glfw.windowHint(glfw.WindowHint.opengl_profile, glfw.OpenGLProfile.opengl_core_profile);
 
+    glfw.windowHint(glfw.WindowHint.resizable, false);
+
     const window = try glfw.createWindow(WINDOW_WIDTH, WINDOW_HEIGHT, title, null, null);
 
     glfw.makeContextCurrent(window);
@@ -430,12 +432,8 @@ fn scrollCallback(window: *glfw.Window, x_offset: f64, y_offset: f64) callconv(.
 
 fn fbResizeCallback(window: *glfw.Window, width: c_int, height: c_int) callconv(.c) void {
     _ = window;
+    _ = width;
+    _ = height;
 
-    // TODO!!!!
-    // resizare texture framebuffer
-
-    state.opengl.pipeline.?.fb_size[0][0] = @intFromFloat(@trunc(@as(f32, @floatFromInt(width)) / RES_REDUCTION));
-    state.opengl.pipeline.?.fb_size[0][1] = @intFromFloat(@trunc(@as(f32, @floatFromInt(height)) / RES_REDUCTION));
-    state.opengl.pipeline.?.fb_size[1][0] = width;
-    state.opengl.pipeline.?.fb_size[1][1] = height;
+    std.debug.panic("Resizing should be disabled", .{});
 }

@@ -1,17 +1,16 @@
 implementare:
-capire se il cone marching puo missare della geometria? si puo farlo (dimostrazione su p5), quindi "gonfio" geometria e muovo di distanza * riduttore
-resizare buffer primo passo al resize della finestra
+resizare buffer primo passo al resize della finestra, rendo la finestra non resizabile, meno sbatti e non cambia nulla
 unificare le shader (avere una shader unica visto che la maggior parte del codice e' condiviso, cosi da compilare primo o secondo passo in base a delle costanti)
 aggiornare a opengl 4.6
-invece che avere 2 fragment facciamo primo passo in vertex cosi da avere un solo program
 debug callback
 convertire uniform in ssbo
+invece che avere 2 fragment facciamo primo passo in vertex cosi da avere un solo program
 spostare su CPU i calcoli non necessari
-ray packing per i riflessi (praticamente si tratta di unire i punti e i raggi dei riflessi da calcolare, metterli in un buffer e farlo in un passo diverso in modo da non stallare la wavefront calcolandoli al momento)
-gestire scene oggetti non hardcoded
 visualizzazione informazioni come testo rasterizzato sulla finestra invece che in console
 possibilita di cambiare visualizzazione a runtime e alcuni parametri (come rimbalzi)
 ottimizzare la shader
+ray packing per i riflessi (praticamente si tratta di unire i punti e i raggi dei riflessi da calcolare, metterli in un buffer e farlo in un passo diverso in modo da non stallare la wavefront calcolandoli al momento)
+gestire scene oggetti non hardcoded
 
 fix:
 sistemare pin meno sporgente dai bordi del pistone (rientrante rispetto al pistone)
