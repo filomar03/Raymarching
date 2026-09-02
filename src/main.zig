@@ -271,8 +271,8 @@ pub fn main() !void {
     defer gl.deleteProgram(pipeline.program[1]);
 
     // Camera in posizione piu ottimale
-    state.*.camera.position = .{.x = 5.8, .y = 0.0, .z = 1.1};
-    state.*.camera.rotation = glm.Quaternion.normalize(.{.i = 0.014, .j = -0.46, .k = 0.007, .w = 0.888});
+    state.*.camera.position = .{.x = 6.5, .y = 0.0, .z = 3.6 };
+    state.*.camera.rotation = glm.Quaternion.normalize(.{.i = 0.011, .j = -0.581, .k = 0.008, .w = 0.814});
 
     const unifs = &state.opengl.uniforms.?;
     gl.uniform1i(unifs[1].depth_tex, 0);
