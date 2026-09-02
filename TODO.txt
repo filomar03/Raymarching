@@ -1,4 +1,5 @@
 implementare:
+convertire il primo passo in cone marching (forse anche il secondo?) perche facendo un semplice ray marching causa la perdita di informazioni se il primo passo va a risoluzione ridotta rispetto al secondo
 resizare buffer primo passo al resize della finestra
 unificare le shader (avere una shader unica visto che la maggior parte del codice e' condiviso, cosi da compilare primo o secondo passo in base a delle costanti)
 convertire il primo passo in cone marching (forse anche il secondo?) perche facendo un semplice ray marching causa la perdita di informazioni se il primo passo va a risoluzione ridotta rispetto al secondo
