@@ -324,19 +324,23 @@ vec3 rotate(vec4 q, vec3 p) { // fast formula to rotate a point with a unit quat
     return p + 2 * q.w * cross(q.xyz, p) + 2 * cross(q.xyz, cross(q.xyz, p));
 }
 
+#define RELAX_MOD 0.8
+#define INFLATE_MOD 0.05
+
 float coneMarch(vec3 p, vec3 ray) {
     int step = 0;
     float travel = 0;
 
     while (step < MAX_STEP) {
         float dist = map(p);
-        p += ray * dist;
+        p += ray * dist * RELAX_MOD;
         travel += dist;
 
+        float ratio = uResolution.x / uResolution.y;
+        float cone_r = travel * tan(radians(uFov) / (2 * uResolution.y)) * sqrt(1 + ratio * ratio); // cone that touches both edges of the pixel
         // float cone_r = dist * tan(uFov/uResolution.y) * max(1, uResolution.x / uResolution.y);           // cone that touches at least one edge of the pixel
-        float cone_r = dist * tan(uFov/uResolution.y) * sqrt(1 + pow(uResolution.x / uResolution.y, 2)); // cone that touches both edges of the pixel
 
-        if (abs(dist) <= cone_r) {
+        if (abs(dist) + INFLATE_MOD <= cone_r) {
             return travel;
         }
 
@@ -346,6 +350,8 @@ float coneMarch(vec3 p, vec3 ray) {
 
         step++;
     }
+
+    return travel;
 }
 
 float rayMarch(vec3 starting_point, vec3 ray) {
