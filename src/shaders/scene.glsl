@@ -1,21 +1,3 @@
-#version 330 core
-
-// Uniforms
-uniform vec2 uResolution;
-uniform float uTime;
-uniform float uFov;
-uniform vec3 uCamPos;
-uniform vec4 uCamRot;
-uniform float uCrankAngle;
-
-// Shader output
-out float Distance;
-
-// Rendering params
-#define HIT_DISTANCE 0.001
-#define MAX_STEP 1000
-#define MAX_TRAVEL 30.0
-
 // Shape operations
 float opUnion(float a, float b) {
     return min(a, b);
@@ -200,7 +182,11 @@ void computeFrameValues() {
     }
 }
 
+#ifdef FIRST_PASS
 float map(vec3 p) {
+#elif SECOND_PASS
+SceneInfo map(vec3 p) {
+#endif
     vec3 engine_pos = p - abs_eng_position;
 
     // DUPLICATE PARTS
@@ -308,6 +294,7 @@ float map(vec3 p) {
     vec3 section_pos = engine_pos - vec3(MAX_TRAVEL, 0, 0);
     float d_section = sdBox(section_pos, vec3(MAX_TRAVEL));
 
+#ifdef FIRST_PASS
     float scene = MAX_TRAVEL;
 
     scene = opUnion(scene, d_block);
@@ -316,82 +303,23 @@ float map(vec3 p) {
     scene = opUnion(scene, d_rings);
     scene = opUnion(scene, d_cranks);
     scene = opUnion(scene, d_timing_gear);
+#elif SECOND_PASS
+    SceneInfo scene = SceneInfo(d_pistons, MAT_PISTON);
 
+    if (d_block < scene.distance) scene.mat_index = MAT_BLOCK;
+    scene.distance = opUnion(scene.distance, d_block);
+
+    if (d_conrods < scene.distance) scene.mat_index = MAT_CONROD;
+    scene.distance = opUnion(scene.distance, d_conrods);
+
+    if (d_rings < scene.distance) scene.mat_index = MAT_RINGS;
+    scene.distance = opUnion(scene.distance, d_rings);
+
+    if (d_cranks < scene.distance) scene.mat_index = MAT_CRANKSHAFT;
+    scene.distance = opUnion(scene.distance, d_cranks);
+
+    if (d_timing_gear < scene.distance) scene.mat_index = MAT_GEARS;
+    scene.distance = opUnion(scene.distance, d_timing_gear);
+#endif
     return scene;
-}
-
-vec3 rotate(vec4 q, vec3 p) { // fast formula to rotate a point with a unit quaternion
-    return p + 2 * q.w * cross(q.xyz, p) + 2 * cross(q.xyz, cross(q.xyz, p));
-}
-
-#define RELAX_MOD 0.8
-#define INFLATE_MOD 0.05
-
-float coneMarch(vec3 p, vec3 ray) {
-    int step = 0;
-    float travel = 0;
-
-    while (step < MAX_STEP) {
-        float dist = map(p);
-        p += ray * dist * RELAX_MOD;
-        travel += dist;
-
-        float ratio = uResolution.x / uResolution.y;
-        float cone_r = travel * tan(radians(uFov) / (2 * uResolution.y)) * sqrt(1 + ratio * ratio); // cone that touches both edges of the pixel
-        // float cone_r = dist * tan(uFov/uResolution.y) * max(1, uResolution.x / uResolution.y);           // cone that touches at least one edge of the pixel
-
-        if (abs(dist) + INFLATE_MOD <= cone_r) {
-            return travel;
-        }
-
-        if (travel > MAX_TRAVEL) {
-            return MAX_TRAVEL;
-        }
-
-        step++;
-    }
-
-    return travel;
-}
-
-float rayMarch(vec3 starting_point, vec3 ray) {
-    vec3 p = starting_point;
-    float travel = 0;
-    int step = 0;
-
-    while (step < MAX_STEP) {
-        float scene = map(p);
-
-        travel += scene;
-        p += ray * scene;
-
-        if (scene <= HIT_DISTANCE) {
-            return travel;
-        }
-
-        if (travel > MAX_TRAVEL) {
-            return MAX_TRAVEL;
-        }
-
-        step += 1;
-    }
-
-    return travel;
-}
-
-void main()
-{
-    computeFrameValues();
-
-    float aspect_ratio = uResolution.x / uResolution.y;
-    float tan_half_fov = tan(radians(uFov * 0.5)); // projection plane half height over near distance factor
-    vec2 uv = gl_FragCoord.xy / uResolution * 2.0 - 1; // normalize
-    uv *= vec2(tan_half_fov); // scale to adjust for FOV (no need to mul by near since it's 1)
-    uv.x *= aspect_ratio; // scale x to maintain ratio
-
-    vec3 p = uCamPos;
-    vec3 ray = normalize(rotate(uCamRot, vec3(uv, 1))); // near is set to 1, since changing it doesn't affect the rendering (for now)
-    vec3 observer_position = uCamPos;
-
-    Distance = coneMarch(p, ray);
 }

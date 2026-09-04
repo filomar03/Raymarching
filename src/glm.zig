@@ -1,9 +1,11 @@
 const std = @import("std");
+const consts = @import("constants.zig");
 const math = std.math;
 
-const EPS = 1e-6;
-pub inline fn approxEq(a: f32, b: f32) bool {
-    return std.math.approxEqAbs(f32, a, b, EPS);
+pub const EPS = 1e-6;
+
+inline fn approxEq(a: f32, b: f32) bool { // inline non dovrebbe avere parametri comptime?
+    return std.math.approxEqAbs(f32, a, b, consts.EPS);
 }
 
 pub fn Vec(dim: usize) type {

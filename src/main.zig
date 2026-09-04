@@ -1,439 +1,215 @@
-// Parametri rendering
-const RES_REDUCTION = 3;
-
-// Parametri finestra
-const WINDOW_WIDTH = 1000;
-const WINDOW_HEIGHT = 800;
-const VSYNC_SETTING = VSYNC_ON;
-
-// Update console
-const DBG_UPDATE_INTERVAL: f32 = 0.5;
-
-// Path shader
-const SHADER_DIR = "src/shaders";
-const VERTEX_SHADER_FILE = "vertex.glsl";
-const PASS1_SHADER_FILE = "fragment fast.glsl";
-const PASS2_SHADER_FILE = "fragment.glsl";
-
-// Parametri shader
-const MAX_SHADER_SIZE = 1024 * 1024; // 1 Mib
-const INFO_LOG_MAX = 512;
-
-// Versione opengl
-const OPENGL_MAJOR = 3;
-const OPENGL_MINOR = 3;
-
-const VSYNC_ON = 1;
-const VSYNC_OFF = 0;
-
 const std = @import("std");
 const glfw = @import("zglfw");
-const opengl = @import("zopengl");
-const engine = @import("engine/state.zig");
-const glm = @import("engine/glm.zig");
-const zm = @import("zmath");
-const sim = @import("simulation.zig");
-
-const gl = opengl.bindings;
-const Console = engine.ConsoleInterface.Kind;
-const assert = std.debug.assert;
-
-const state = &engine.state;
-
-fn createWindow(title: [:0]const u8) !*glfw.Window {
-    glfw.windowHint(glfw.WindowHint.context_version_major, OPENGL_MAJOR);
-    glfw.windowHint(glfw.WindowHint.context_version_minor, OPENGL_MINOR);
-    glfw.windowHint(glfw.WindowHint.opengl_profile, glfw.OpenGLProfile.opengl_core_profile);
-
-    glfw.windowHint(glfw.WindowHint.resizable, false);
-
-    const window = try glfw.createWindow(WINDOW_WIDTH, WINDOW_HEIGHT, title, null, null);
-
-    glfw.makeContextCurrent(window);
-    glfw.swapInterval(VSYNC_SETTING);
-
-    try opengl.loadCoreProfile(glfw.getProcAddress, OPENGL_MAJOR, OPENGL_MINOR);
-
-    _ = glfw.setFramebufferSizeCallback(window, &fbResizeCallback);
-    _ = glfw.setScrollCallback(window, &scrollCallback);
-
-    try glfw.setInputMode(window, glfw.InputMode.cursor, glfw.Cursor.Mode.disabled);
-    if (glfw.rawMouseMotionSupported()) {
-        try glfw.setInputMode(window, glfw.InputMode.raw_mouse_motion, true);
-    }
-
-    return window;
-}
-
-const VERT_SIZE = 3;
-const canvas = [_]gl.Float{
-    -1.0, -1.0, -1.0,
-    -1.0,  1.0, -1.0,
-     1.0,  1.0, -1.0,
-
-    -1.0, -1.0, -1.0,
-     1.0,  1.0, -1.0,
-     1.0, -1.0, -1.0,
-};
-fn setupCanvas(vbo: [*c]gl.Uint, vao: [*c]gl.Uint) void {
-    gl.genBuffers(1, vbo);
-    gl.genVertexArrays(1, vao);
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, vbo.*);
-    gl.bindVertexArray(vao.*);
-
-    gl.bufferData(gl.ARRAY_BUFFER, @sizeOf(@TypeOf(canvas)), &canvas, gl.STATIC_DRAW);
-
-    gl.vertexAttribPointer(0, VERT_SIZE, gl.FLOAT, gl.FALSE, @sizeOf([VERT_SIZE]gl.Float), @ptrFromInt(0));
-    gl.enableVertexAttribArray(0);
-}
-
-const Shaders = struct {
-    vertex: [:0]const u8,
-    fragment: [2][:0]const u8,
-};
-fn loadShaders(allocator: std.mem.Allocator) !Shaders {
-    var shader_dir = try std.fs.cwd().openDir(SHADER_DIR, .{});
-    defer shader_dir.close();
-    return .{
-        .vertex = try shader_dir.readFileAllocOptions(allocator, VERTEX_SHADER_FILE, MAX_SHADER_SIZE, null, .of(u8), 0),
-        .fragment = .{
-            try shader_dir.readFileAllocOptions(allocator, PASS1_SHADER_FILE, MAX_SHADER_SIZE, null, .of(u8), 0),
-            try shader_dir.readFileAllocOptions(allocator, PASS2_SHADER_FILE, MAX_SHADER_SIZE, null, .of(u8), 0),
-        }
-    };
-}
-
-fn setupPipeline(shaders: Shaders, window: *glfw.Window) !void {
-    var stderr = state.console.writer(Console.STDERR);
-
-    const vertex = gl.createShader(gl.VERTEX_SHADER);
-    const fragment1 = gl.createShader(gl.FRAGMENT_SHADER);
-    const fragment2 = gl.createShader(gl.FRAGMENT_SHADER);
-
-    gl.shaderSource(vertex, 1, @ptrCast(&shaders.vertex), null);
-    gl.shaderSource(fragment1, 1, @ptrCast(&shaders.fragment[0]), null);
-    gl.shaderSource(fragment2, 1, @ptrCast(&shaders.fragment[1]), null);
-
-    var info_log: [INFO_LOG_MAX:0]u8 = undefined;
-    var log_len: c_int = undefined;
-    var shader_compiled: gl.Int = undefined;
-
-    gl.compileShader(vertex);
-    gl.getShaderiv(vertex, gl.COMPILE_STATUS, &shader_compiled);
-    if (shader_compiled != gl.TRUE) {
-        gl.getShaderInfoLog(vertex, INFO_LOG_MAX, @ptrCast(&log_len), @ptrCast(&info_log));
-        try stderr.print("[Vertex shader] {s}", .{info_log[0..@intCast(log_len)]});
-        try stderr.flush();
-        return;
-    }
-
-    gl.compileShader(fragment1);
-    gl.getShaderiv(fragment1, gl.COMPILE_STATUS, &shader_compiled);
-    if (shader_compiled != gl.TRUE) {
-        gl.getShaderInfoLog(fragment1, INFO_LOG_MAX, @ptrCast(&log_len), @ptrCast(&info_log));
-        try stderr.print("[Fragment (pass 1) shader] {s}", .{info_log[0..@intCast(log_len)]});
-        try stderr.flush();
-        return;
-    }
-
-    gl.compileShader(fragment2);
-    gl.getShaderiv(fragment2, gl.COMPILE_STATUS, &shader_compiled);
-    if (shader_compiled != gl.TRUE) {
-        gl.getShaderInfoLog(fragment2, INFO_LOG_MAX, @ptrCast(&log_len), @ptrCast(&info_log));
-        try stderr.print("[Fragment (pass 2) shader] {s}", .{info_log[0..@intCast(log_len)]});
-        try stderr.flush();
-        return;
-    }
-
-    const program1 = gl.createProgram();
-    const program2 = gl.createProgram();
-
-    gl.attachShader(program1, vertex);
-    gl.attachShader(program1, fragment1);
-    gl.attachShader(program2, vertex);
-    gl.attachShader(program2, fragment2);
-
-    gl.linkProgram(program1);
-    gl.linkProgram(program2);
-
-    var program_linked: gl.Int = undefined;
-    gl.getProgramiv(program1, gl.LINK_STATUS, &program_linked);
-    if (program_linked != gl.TRUE) {
-        gl.getProgramInfoLog(program1, INFO_LOG_MAX, @ptrCast(&log_len), @ptrCast(&info_log));
-        try stderr.print("[Pass 1 program] {s}", .{info_log[0..@intCast(log_len)]});
-        try stderr.flush();
-        return;
-    }
-
-    gl.getProgramiv(program2, gl.LINK_STATUS, &program_linked);
-    if (program_linked != gl.TRUE) {
-        gl.getProgramInfoLog(program2, INFO_LOG_MAX, @ptrCast(&log_len), @ptrCast(&info_log));
-        try stderr.print("[Pass 2 program] {s}", .{info_log[0..@intCast(log_len)]});
-        try stderr.flush();
-        return;
-    }
-
-    var fb_size: [2]c_int = undefined;
-    glfw.getFramebufferSize(window, @constCast(&fb_size[0]), @constCast(&fb_size[1]));
-
-    // genero texture
-    var depth_tex: gl.Uint = undefined;
-    gl.genTextures(1, @ptrCast(&depth_tex));
-    // seleziono tex slot
-    gl.activeTexture(gl.TEXTURE0);
-    // bindo texture
-    gl.bindTexture(gl.TEXTURE_2D, depth_tex);
-    // configuro 2d image texture
-    const fb_size_red: [2]c_int = .{
-        @intFromFloat(@trunc(@as(gl.Float, @floatFromInt(fb_size[0])) / RES_REDUCTION)),
-        @intFromFloat(@trunc(@as(gl.Float, @floatFromInt(fb_size[1])) / RES_REDUCTION))
-    };
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, fb_size_red[0], fb_size_red[1], 0, gl.RED, gl.FLOAT, null);
-
-    // assegno parametri texture
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-
-    // genero fb
-    var fb: gl.Uint = undefined;
-    gl.genFramebuffers(1, @ptrCast(&fb));
-    // bindo fb
-    gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
-    // assegno texture a fb
-    gl.framebufferTexture(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, depth_tex, 0);
-
-    state.opengl.pipeline = .{
-        .vertex = vertex,
-        .fragment = .{fragment1, fragment2},
-        .program = .{program1, program2},
-        .alt_fb = fb,
-        .fb_size = .{
-            .{fb_size_red[0], fb_size_red[1]},
-            .{fb_size[0], fb_size[1]},
-        }
-    };
-
-    // Bind uniforms
-    state.opengl.uniforms = .{
-        .{
-            .resolution = gl.getUniformLocation(program1, "uResolution"),
-            .time = gl.getUniformLocation(program1, "uTime"),
-            .cam_fov = gl.getUniformLocation(program1, "uFov"),
-            .cam_pos = gl.getUniformLocation(program1, "uCamPos"),
-            .cam_rot = gl.getUniformLocation(program1, "uCamRot"),
-            .crank_angle = gl.getUniformLocation(program1, "uCrankAngle"),
-            .depth_tex = 0,
-        },
-        .{
-            .resolution = gl.getUniformLocation(program2, "uResolution"),
-            .time = gl.getUniformLocation(program2, "uTime"),
-            .cam_fov = gl.getUniformLocation(program2, "uFov"),
-            .cam_pos = gl.getUniformLocation(program2, "uCamPos"),
-            .cam_rot = gl.getUniformLocation(program2, "uCamRot"),
-            .crank_angle = gl.getUniformLocation(program2, "uCrankAngle"),
-            .depth_tex = gl.getUniformLocation(program2, "uSampler"),
-        },
-    };
-}
+const engine = @import("engine");
+const sim = @import("simulation");
+const consts = @import("constants.zig");
+const window = @import("window.zig");
+const pipeline = @import("pipeline.zig");
 
 pub fn main() !void {
+    try glfw.init();
+    defer glfw.terminate();
+
+    const context = try window.create(.{});
+    defer context.destroy();
+
+    var state = engine.state.State{
+        .context = context,
+    };
+    defer state.opengl.cleanup();
+
     var gpa: std.heap.DebugAllocator(.{}) = .init;
     const allocator = gpa.allocator();
 
     var stdout_buf: [64]u8 = undefined;
     var stderr_buf: [64]u8 = undefined;
-    state.console.init(Console.STDOUT, &stdout_buf);
-    state.console.init(Console.STDERR, &stderr_buf);
-    var stdout = state.console.writer(Console.STDOUT);
 
-    try glfw.init();
-    defer glfw.terminate();
+    const Console = engine.state.Console;
+    state.console.init(Console.Kind.stdout, &stdout_buf);
+    state.console.init(Console.Kind.stderr, &stderr_buf);
 
-    const window = try createWindow("Raymarching demo");
-    defer window.destroy();
+    var stdout = state.console.writer(Console.Kind.stdout);
+    var stderr = state.console.writer(Console.Kind.stderr);
 
-    var vbo: gl.Uint = undefined;
-    var vao: gl.Uint = undefined;
-    setupCanvas(@ptrCast(&vbo), @ptrCast(&vao));
-    defer gl.deleteBuffers(1, @ptrCast(&vbo));
-    defer gl.deleteVertexArrays(1, @ptrCast(&vao));
+    pipeline.setupCanvas(&state.opengl.vbo, &state.opengl.vao);
 
-    const shaders = try loadShaders(allocator);
-    defer allocator.free(shaders.vertex);
-    defer allocator.free(shaders.fragment[0]);
-    defer allocator.free(shaders.fragment[1]);
-
-    try setupPipeline(shaders, window);
-    const pipeline = &state.opengl.pipeline.?;
-    defer gl.deleteShader(pipeline.vertex);
-    defer gl.deleteShader(pipeline.fragment[0]);
-    defer gl.deleteShader(pipeline.fragment[1]);
-    defer gl.deleteProgram(pipeline.program[0]);
-    defer gl.deleteProgram(pipeline.program[1]);
-
-    // Camera in posizione piu ottimale
-    state.*.camera.position = .{.x = 6.5, .y = 0.0, .z = 3.6 };
-    state.*.camera.rotation = glm.Quaternion.normalize(.{.i = 0.011, .j = -0.581, .k = 0.008, .w = 0.814});
-
-    const unifs = &state.opengl.uniforms.?;
-    gl.uniform1i(unifs[1].depth_tex, 0);
-    var last_dbg_update: f32 = 0;
-    while (!window.shouldClose()) {
-        const now = @as(f32, @floatCast(glfw.getTime()));
-        state.dt = now - state.now;
-        state.now = now;
-
-        glfw.pollEvents();
-        getInput(window);
-
-        // 1st pass
-        gl.bindFramebuffer(gl.FRAMEBUFFER, pipeline.alt_fb);
-        gl.useProgram(pipeline.program[0]);
-        updateUniforms(unifs[0], 0);
-        gl.viewport(0, 0, pipeline.fb_size[0][0], pipeline.fb_size[0][1]);
-        gl.drawArrays(gl.TRIANGLES, 0, canvas.len / VERT_SIZE);
-
-        // 2nd pass
-        gl.bindFramebuffer(gl.FRAMEBUFFER, 0);
-        gl.useProgram(pipeline.program[1]);
-        updateUniforms(unifs[1], 1);
-        gl.viewport(0, 0, pipeline.fb_size[1][0], pipeline.fb_size[1][1]);
-        gl.drawArrays(gl.TRIANGLES, 0, canvas.len / VERT_SIZE);
-
-        window.swapBuffers();
-
-        state.debug.performance.addFrametime(state.dt);
-        if (now - last_dbg_update >= DBG_UPDATE_INTERVAL) {
-            last_dbg_update = now;
-            try stdout.print("\x1b[2J\x1b[H", .{});
-            try stdout.print("FPS: {:.0}\n", .{1 / state.debug.performance.getAvgFrameTime()});
-            try stdout.print("FOV: {:.0}\n", .{state.camera.fov});
-            try stdout.print("SPEED: {:.1} | {:.1} | {:.1}\n", .{cam_speed.x, cam_speed.y, cam_speed.z});
-            const cam_pos = &state.*.camera.position;
-            try stdout.print("POS: {:.1} | {:.1} | {:.1}\n", .{cam_pos.x, cam_pos.y, cam_pos.z});
-            const cam_rot = &state.camera.rotation;
-            try stdout.print("ROT: {:.3} | {:.3} | {:.3} | {:.3}\n", .{cam_rot.i, cam_rot.j, cam_rot.k, cam_rot.w});
-            try stdout.print("RPM: {:.0}\n", .{@as(u32, @intFromFloat(state.simulation.rpm))});
-            try stdout.flush();
-        }
-    }
+    pipeline.setupPipeline(stateObj: (unknown type))
 }
+//     const shaders = try loadShaders(allocator);
+//     defer allocator.free(shaders.vertex);
+//     defer allocator.free(shaders.fragment[0]);
+//     defer allocator.free(shaders.fragment[1]);
 
-fn getInput(window: *glfw.Window) void {
-    // Disabilitati per testare diffferenze visive con parametri diversi
-    // moveCamera(window);
-    // rotateCamera(window);
-    sim.modifyRpm(window);
-    detectQuit(window);
-}
+//     try setupPipeline(shaders, window);
+//     const pipeline = &state.opengl.pipeline.?;
+//     defer gl.deleteShader(pipeline.vertex);
+//     defer gl.deleteShader(pipeline.fragment[0]);
+//     defer gl.deleteShader(pipeline.fragment[1]);
+//     defer gl.deleteProgram(pipeline.program[0]);
+//     defer gl.deleteProgram(pipeline.program[1]);
 
-fn updateUniforms(locations: engine.OpenGL.UniformLocations, pass: u32) void {
-    const fb_size = state.*.opengl.pipeline.?.fb_size;
-    gl.uniform2f(locations.resolution, @as(f32, @floatFromInt(fb_size[pass][0])), @as(f32, @floatFromInt(fb_size[pass][1])));
-    gl.uniform3fv(locations.cam_pos, 1, &state.camera.position.toArray());
-    const rot = &state.*.camera.rotation;
-    gl.uniform4f(locations.cam_rot, rot.*.i, rot.*.j, rot.*.k, rot.*.w);
-    gl.uniform1f(locations.cam_fov, state.camera.fov);
-    gl.uniform1f(locations.time, state.now);
-    gl.uniform1f(locations.crank_angle, @floatCast(state.simulation.crank_angle));
-}
+//     // Camera in posizione piu ottimale
+//     state.*.camera.position = .{.x = 6.5, .y = 0.0, .z = 3.6 };
+//     state.*.camera.rotation = glm.Quaternion.normalize(.{.i = 0.011, .j = -0.581, .k = 0.008, .w = 0.814});
 
-const CAM_SPEED_DEF = glm.Vec3{ .x = 7.5, .y = 3, .z = 7.5 };
-var cam_speed = CAM_SPEED_DEF;
+//     const unifs = &state.opengl.uniforms.?;
+//     gl.uniform1i(unifs[1].depth_tex, 0);
+//     var last_dbg_update: f32 = 0;
+//     while (!window.shouldClose()) {
+//         const now = @as(f32, @floatCast(glfw.getTime()));
+//         state.dt = now - state.now;
+//         state.now = now;
 
-fn moveCamera(window: *glfw.Window) void {
-    const forward: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.w) == glfw.Action.press));
-    const backwards: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.s) == glfw.Action.press));
-    const right: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.d) == glfw.Action.press));
-    const left: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.a) == glfw.Action.press));
-    const up: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.e) == glfw.Action.press));
-    const down: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.q) == glfw.Action.press));
-    const jump: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.space) == glfw.Action.press));
-    const crouch: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.left_control) == glfw.Action.press));
+//         glfw.pollEvents();
+//         getInput(window);
 
-    const world_mov: glm.Vec3 = .{ .x = 0, .y = (jump + -crouch) * cam_speed.y, .z = 0 };
-    const cam_mov: glm.Vec3 = .{ .x = right + -left, .y = up + -down, .z = forward + -backwards };
-    var cam_forward = state.camera.rotation.rotateVec(cam_mov);
+//         // 1st pass
+//         gl.bindFramebuffer(gl.FRAMEBUFFER, pipeline.alt_fb);
+//         gl.useProgram(pipeline.program[0]);
+//         updateUniforms(unifs[0], 0);
+//         gl.viewport(0, 0, pipeline.fb_size[0][0], pipeline.fb_size[0][1]);
+//         gl.drawArrays(gl.TRIANGLES, 0, canvas.len / VERT_SIZE);
 
-    cam_forward = cam_forward.sum(world_mov).normalize();
+//         // 2nd pass
+//         gl.bindFramebuffer(gl.FRAMEBUFFER, 0);
+//         gl.useProgram(pipeline.program[1]);
+//         updateUniforms(unifs[1], 1);
+//         gl.viewport(0, 0, pipeline.fb_size[1][0], pipeline.fb_size[1][1]);
+//         gl.drawArrays(gl.TRIANGLES, 0, canvas.len / VERT_SIZE);
 
-    var pos = &state.camera.position;
-    pos.* = pos.sum(cam_forward.mul(cam_speed).mul(state.dt));
-}
+//         window.swapBuffers();
 
-var prev_mx: f64 = 0;
-var prev_my: f64 = 0;
+//         state.debug.performance.addFrametime(state.dt);
+//         if (now - last_dbg_update >= DBG_UPDATE_INTERVAL) {
+//             last_dbg_update = now;
+//             try stdout.print("\x1b[2J\x1b[H", .{});
+//             try stdout.print("FPS: {:.0}\n", .{1 / state.debug.performance.getAvgFrameTime()});
+//             try stdout.print("FOV: {:.0}\n", .{state.camera.fov});
+//             try stdout.print("SPEED: {:.1} | {:.1} | {:.1}\n", .{cam_speed.x, cam_speed.y, cam_speed.z});
+//             const cam_pos = &state.*.camera.position;
+//             try stdout.print("POS: {:.1} | {:.1} | {:.1}\n", .{cam_pos.x, cam_pos.y, cam_pos.z});
+//             const cam_rot = &state.camera.rotation;
+//             try stdout.print("ROT: {:.3} | {:.3} | {:.3} | {:.3}\n", .{cam_rot.i, cam_rot.j, cam_rot.k, cam_rot.w});
+//             try stdout.print("RPM: {:.0}\n", .{@as(u32, @intFromFloat(state.simulation.rpm))});
+//             try stdout.flush();
+//         }
+//     }
+// }
 
-const CAM_SENS = 0.002;
+// fn getInput(window: *glfw.Window) void {
+//     // Disabilitati per testare diffferenze visive con parametri diversi
+//     // moveCamera(window);
+//     // rotateCamera(window);
+//     sim.modifyRpm(window);
+//     detectQuit(window);
+// }
 
-pub const Y_AXIS: glm.Vec3 = .{
-    .x = 0,
-    .y = 1,
-    .z = 0,
-};
+// fn updateUniforms(locations: engine.OpenGL.UniformLocations, pass: u32) void {
+//     const fb_size = state.*.opengl.pipeline.?.fb_size;
+//     gl.uniform2f(locations.resolution, @as(f32, @floatFromInt(fb_size[pass][0])), @as(f32, @floatFromInt(fb_size[pass][1])));
+//     gl.uniform3fv(locations.cam_pos, 1, &state.camera.position.toArray());
+//     const rot = &state.*.camera.rotation;
+//     gl.uniform4f(locations.cam_rot, rot.*.i, rot.*.j, rot.*.k, rot.*.w);
+//     gl.uniform1f(locations.cam_fov, state.camera.fov);
+//     gl.uniform1f(locations.time, state.now);
+//     gl.uniform1f(locations.crank_angle, @floatCast(state.simulation.crank_angle));
+// }
 
-pub const X_AXIS: glm.Vec3 = .{
-    .x = 1,
-    .y = 0,
-    .z = 0,
-};
+// const CAM_SPEED_DEF = glm.Vec3{ .x = 7.5, .y = 3, .z = 7.5 };
+// var cam_speed = CAM_SPEED_DEF;
 
-fn rotateCamera(window: *glfw.Window) void {
-    var mx: f64 = undefined;
-    var my: f64 = undefined;
-    glfw.getCursorPos(window, &mx, &my);
+// fn moveCamera(window: *glfw.Window) void {
+//     const forward: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.w) == glfw.Action.press));
+//     const backwards: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.s) == glfw.Action.press));
+//     const right: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.d) == glfw.Action.press));
+//     const left: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.a) == glfw.Action.press));
+//     const up: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.e) == glfw.Action.press));
+//     const down: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.q) == glfw.Action.press));
+//     const jump: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.space) == glfw.Action.press));
+//     const crouch: f32 = @floatFromInt(@intFromBool(glfw.getKey(window, glfw.Key.left_control) == glfw.Action.press));
 
-    const dmx = @as(f32, @floatCast(mx - prev_mx));
-    const dmy = @as(f32, @floatCast(my - prev_my));
+//     const world_mov: glm.Vec3 = .{ .x = 0, .y = (jump + -crouch) * cam_speed.y, .z = 0 };
+//     const cam_mov: glm.Vec3 = .{ .x = right + -left, .y = up + -down, .z = forward + -backwards };
+//     var cam_forward = state.camera.rotation.rotateVec(cam_mov);
 
-    const rot = &state.camera.rotation;
+//     cam_forward = cam_forward.sum(world_mov).normalize();
 
-    const y_angle = dmx * CAM_SENS;
-    const y_rot = glm.Quaternion.fromAxis(Y_AXIS, y_angle);
-    rot.* = y_rot.mul(rot.*);
+//     var pos = &state.camera.position;
+//     pos.* = pos.sum(cam_forward.mul(cam_speed).mul(state.dt));
+// }
 
-    const x_angle = dmy * CAM_SENS;
-    const rotated_x_axis = rot.*.rotateVec(X_AXIS);
-    const x_rot = glm.Quaternion.fromAxis(rotated_x_axis, x_angle);
+// var prev_mx: f64 = 0;
+// var prev_my: f64 = 0;
 
-    rot.* = x_rot.mul(rot.*).normalize(); // normalize to stop errors from propagating through frames
+// const CAM_SENS = 0.002;
 
-    prev_mx = mx;
-    prev_my = my;
-}
+// pub const Y_AXIS: glm.Vec3 = .{
+//     .x = 0,
+//     .y = 1,
+//     .z = 0,
+// };
 
-fn detectQuit(window: *glfw.Window) void {
-    if (glfw.getKey(window, glfw.Key.escape) == glfw.Action.press) {
-        glfw.setWindowShouldClose(window, true);
-    }
-}
+// pub const X_AXIS: glm.Vec3 = .{
+//     .x = 1,
+//     .y = 0,
+//     .z = 0,
+// };
 
-const FOV_SENS: f32 = 1.0;
+// fn rotateCamera(window: *glfw.Window) void {
+//     var mx: f64 = undefined;
+//     var my: f64 = undefined;
+//     glfw.getCursorPos(window, &mx, &my);
 
-fn adjustCamFov(scroll: f32) void {
-    state.camera.setFOV(state.camera.fov + -scroll * FOV_SENS);
-}
+//     const dmx = @as(f32, @floatCast(mx - prev_mx));
+//     const dmy = @as(f32, @floatCast(my - prev_my));
 
-const CAM_SPEED_MOD_DEF: f32 = 0.25;
-var cam_speed_mod: f32 = 1.0;
+//     const rot = &state.camera.rotation;
 
-fn scrollCallback(window: *glfw.Window, x_offset: f64, y_offset: f64) callconv(.c) void {
-    _ = x_offset;
-    const scroll = @as(f32, @floatCast(y_offset));
+//     const y_angle = dmx * CAM_SENS;
+//     const y_rot = glm.Quaternion.fromAxis(Y_AXIS, y_angle);
+//     rot.* = y_rot.mul(rot.*);
 
-    if (glfw.getKey(window, glfw.Key.left_shift) != glfw.Action.press) {
-        adjustCamFov(scroll);
-    } else {
-        cam_speed_mod = std.math.clamp(cam_speed_mod + scroll * CAM_SPEED_MOD_DEF, 0.1, 10.0);
-        cam_speed = CAM_SPEED_DEF.mul(cam_speed_mod);
-    }
-}
+//     const x_angle = dmy * CAM_SENS;
+//     const rotated_x_axis = rot.*.rotateVec(X_AXIS);
+//     const x_rot = glm.Quaternion.fromAxis(rotated_x_axis, x_angle);
 
-fn fbResizeCallback(window: *glfw.Window, width: c_int, height: c_int) callconv(.c) void {
-    _ = window;
-    _ = width;
-    _ = height;
+//     rot.* = x_rot.mul(rot.*).normalize(); // normalize to stop errors from propagating through frames
 
-    std.debug.panic("Resizing should be disabled", .{});
-}
+//     prev_mx = mx;
+//     prev_my = my;
+// }
+
+// fn detectQuit(window: *glfw.Window) void {
+//     if (glfw.getKey(window, glfw.Key.escape) == glfw.Action.press) {
+//         glfw.setWindowShouldClose(window, true);
+//     }
+// }
+
+// const FOV_SENS: f32 = 1.0;
+
+// fn adjustCamFov(scroll: f32) void {
+//     state.camera.setFOV(state.camera.fov + -scroll * FOV_SENS);
+// }
+
+// const CAM_SPEED_MOD_DEF: f32 = 0.25;
+// var cam_speed_mod: f32 = 1.0;
+
+// fn scrollCallback(window: *glfw.Window, x_offset: f64, y_offset: f64) callconv(.c) void {
+//     _ = x_offset;
+//     const scroll = @as(f32, @floatCast(y_offset));
+
+//     if (glfw.getKey(window, glfw.Key.left_shift) != glfw.Action.press) {
+//         adjustCamFov(scroll);
+//     } else {
+//         cam_speed_mod = std.math.clamp(cam_speed_mod + scroll * CAM_SPEED_MOD_DEF, 0.1, 10.0);
+//         cam_speed = CAM_SPEED_DEF.mul(cam_speed_mod);
+//     }
+// }
+
+// fn fbResizeCallback(window: *glfw.Window, width: c_int, height: c_int) callconv(.c) void {
+//     _ = window;
+//     _ = width;
+//     _ = height;
+
+//     std.debug.panic("Resizing should be disabled", .{});
+// }

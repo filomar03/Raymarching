@@ -1,13 +1,16 @@
 implementare:
+provare nome file senza .zig
 unificare le shader (avere una shader unica visto che la maggior parte del codice e' condiviso, cosi da compilare primo o secondo passo in base a delle costanti)
 aggiornare a opengl 4.6
 debug callback
 convertire uniform in ssbo
 invece che avere 2 fragment facciamo primo passo in vertex cosi da avere un solo program
 spostare su CPU i calcoli non necessari
+modificare cambio velocita (logaritmica rispetto ad 2 asisntoti)
 visualizzazione informazioni come testo rasterizzato sulla finestra invece che in console
 possibilita di cambiare visualizzazione a runtime e alcuni parametri (come rimbalzi)
 ottimizzare la shader
+provare vari parametri e testare performance (float vs double)
 ray packing per i riflessi (praticamente si tratta di unire i punti e i raggi dei riflessi da calcolare, metterli in un buffer e farlo in un passo diverso in modo da non stallare la wavefront calcolandoli al momento)
 gestire scene oggetti non hardcoded
 
