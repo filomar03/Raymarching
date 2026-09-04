@@ -1,5 +1,6 @@
 const glfw = @import("zglfw");
 const gl = @import("zopengl").bindings;
+const glm = @import("glm.zig");
 
 // WINDOW
 pub const WINDOW_TITLE = "Raymarching demo";
@@ -26,11 +27,33 @@ pub const CANVAS_VERTS = [_]gl.Float{
 
 pub const RES_REDUCTION = 3;
 
+// WORLD REFERENCE
+pub const X_AXIS: glm.Vec3 = .{
+    .x = 1,
+    .y = 0,
+    .z = 0,
+};
+pub const Y_AXIS: glm.Vec3 = .{
+    .x = 0,
+    .y = 1,
+    .z = 0,
+};
+pub const Z_AXIS: glm.Vec3 = .{
+    .x = 0,
+    .y = 0,
+    .z = 1,
+};
 
 // CAMERA
 pub const CAM_DEF_FOV = 60;
 pub const FOV_MIN = 30;
 pub const FOV_MAX = 120;
+pub const FOV_SENS: f32 = 1.0;
+
+pub const CAM_SENS = 0.002;
+
+pub const CAM_SPEED_DEF = glm.Vec3{ .x = 7.5, .y = 3, .z = 7.5 };
+const CAM_SPEED_MOD_DEF: f32 = 0.25;
 
 // PROFILING
 pub const FRAMETIME_RBUF_DIM = 2048; // power of 2 to enable modulo optimization (& insted of %)
