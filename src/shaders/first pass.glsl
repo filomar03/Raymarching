@@ -1,12 +1,12 @@
-#version 330 core
-
 out float Distance;
 
-uniform vec2 uResolution;
-uniform float uFov;
-uniform vec3 uCamPos;
-uniform vec4 uCamRot;
-uniform float uCrankAngle;
+layout (std140) uniform FrameData {
+    vec2 resolution;
+    float crank_angle;
+    flaot fov;
+    vec4 rotation;
+    vec3 position;
+};
 
 // - RENDERING PARAMS
 #define MAX_STEP 1000
@@ -19,6 +19,8 @@ uniform float uCrankAngle;
 vec3 rotate(vec4 q, vec3 p) { // fast formula to rotate a point with a unit quaternion
     return p + 2 * q.w * cross(q.xyz, p) + 2 * cross(q.xyz, cross(q.xyz, p));
 }
+
+float map(vec3 p);
 
 float coneMarch(vec3 p, vec3 ray) {
     int step = 0;

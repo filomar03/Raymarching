@@ -1,14 +1,13 @@
-#version 330 core
-
 out vec4 FragColor;
 
-uniform vec2 uResolution;
-// uniform float uTime;
-uniform float uFov;
-uniform vec3 uCamPos;
-uniform vec4 uCamRot;
-uniform float uCrankAngle;
-uniform sampler2D uSampler;
+layout (std140) uniform FrameData {
+    vec2 resolution;
+    float crank_angle;
+    flaot fov;
+    vec4 rotation;
+    vec3 position;
+};
+
 
 // - RENDERING PARAMS
 #define HIT_DISTANCE 0.0001
@@ -97,6 +96,8 @@ Material mats[] = Material[](
 vec3 rotate(vec4 q, vec3 p) { // fast formula to rotate a point with a unit quaternion
     return p + 2 * q.w * cross(q.xyz, p) + 2 * cross(q.xyz, cross(q.xyz, p));
 }
+
+SceneInfo map(vec3 p);
 
 HitInfo rayMarch(vec3 p, vec3 ray) {
     int step = 0;

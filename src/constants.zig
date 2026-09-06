@@ -65,12 +65,12 @@ pub const DBG_UPDATE_INTERVAL: f32 = 0.5;
 pub const MAX_SHADER_SIZE = 1024 * 1024; // 1 Mib
 pub const INFO_LOG_MAX = 512;
 
-pub const SHADER_DIR = "";
-pub const VERTEX_FILE = "";
-pub const SCENE_FILE = "";
-pub const PASS1_FILE = "";
-pub const PASS2_FILE = "";
+pub const SHADER_DIR = "src/shaders/";
+pub const VERTEX_FILE = "vertex.glsl";
+pub const SCENE_FILE = "scene.glsl";
+pub const PASS1_FILE = "first pass.glsl";
+pub const PASS2_FILE = "second pass.glsl";
 
 pub const MAX_DEFINES = 5;
-pub const PASS1_DEFINE = "#define FIRST_PASS";
-pub const PASS2_DEFINE = "#define SECOND_PASS";
+pub const PASS1_DEFINE = "#define FIRST_PASS\n";
+pub const PASS2_DEFINE = "#define SECOND_PASS\n";

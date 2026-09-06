@@ -1,5 +1,4 @@
-pub const State = @import("state.zig").State;
-pub const Action = @import("state.zig").Action;
+const State = @import("state.zig").State;
 pub const simulate = @import("state.zig").simulate;
 
 pub const SimulationOptions = struct {
@@ -15,4 +14,5 @@ pub fn new(options: SimulationOptions) State {
     if (options.limiter) |limiter| s.limiter = limiter;
     if (options.accel_rate) |accel_rate| s.accel_rate = accel_rate;
     if (options.stop_time) |stop_time| s.decel_rate = (s.limiter - s.idle) / stop_time;
+    return s;
 }

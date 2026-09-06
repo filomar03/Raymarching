@@ -14,20 +14,12 @@ pub fn build(b: *std.Build) void {
         .use_llvm = true
     });
 
-    const engine_mod = b.createModule(.{
-        .root_source_file = b.path("src/engine/root.zig"),
-        .target = target,
-        .optimize = optimize
-    });
-    exe.root_module.addImport("engine", engine_mod);
-
     const sim_mod = b.createModule(.{
         .root_source_file = b.path("src/simulation/root.zig"),
         .target = target,
         .optimize = optimize
     });
     exe.root_module.addImport("simulation", sim_mod);
-    engine_mod.addImport("simulation", sim_mod);
 
     // zglfw dependency
     const zglfw_dep = b.dependency("zglfw", .{
@@ -55,7 +47,6 @@ pub fn build(b: *std.Build) void {
         ) orelse false,
     });
     exe.root_module.addImport("zglfw", zglfw_dep.module("root"));
-    engine_mod.addImport("zglfw", zglfw_dep.module("root"));
 
     if (target.result.os.tag != .emscripten) {
         exe.linkLibrary(zglfw_dep.artifact("glfw"));
@@ -64,18 +55,19 @@ pub fn build(b: *std.Build) void {
     // zopengl dependency
     const zopengl = b.dependency("zopengl", .{});
     exe.root_module.addImport("zopengl", zopengl.module("root"));
-    engine_mod.addImport("zopengl", zopengl.module("root"));
 
     // zmath dependency
     // const zmath = b.dependency("zmath", .{});
     // exe.root_module.addImport("zmath", zmath.module("root"));
 
     // test step (install dep)
-    const test_exe = b.addTest(.{ .root_module = b.createModule(.{
-        .root_source_file = b.path("src/test.zig"),
-        .target = target,
-        .optimize = optimize,
-    }) });
+    const test_exe = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/test.zig"),
+            .target = target,
+            .optimize = optimize,
+        })
+    });
 
     const run_test = b.addRunArtifact(test_exe);
 

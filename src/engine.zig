@@ -8,10 +8,10 @@ const glm = @import("glm.zig");
 
 pub const State = struct {
     console: Console = .{},
-    opengl: OpenGL = .{},
+    opengl: OpenGL,
     camera: Camera = .{},
     time: Time = .{},
-    simulation: sim.State = .{},
+    simulation: @TypeOf(sim.new(.{})) = .{},
     performance: Performance = .{},
 };
 
@@ -38,7 +38,7 @@ pub const Console = struct {
     }
 
     pub fn writer(self: *Self, kind: Kind) !*std.Io.Writer {
-        return (switch (kind) {
+        return &(switch (kind) {
             .stdout => self.stdout,
             .stderr => self.stderr,
         } orelse return Error.ConsoleNotInitialized).interface;
@@ -48,17 +48,17 @@ pub const Console = struct {
 const OpenGL = struct {
     context: *glfw.Window,
     buffers: struct {
-        vbo: ?gl.Uint = null,
-        vao: ?gl.Uint = null,
-    },
+        vbo: gl.Uint = 0,
+        vao: gl.Uint = 0,
+    } = .{},
     shaders: struct {
         vertex: Shader = .{},
         fragments: [2]Shader = .{.{}, .{}},
-    },
+    } = .{},
     programs: [2]Program = .{.{}, .{}},
-    frame_buffer: ?c_int = null,
-    texture: ?c_int = null,
-    ubo: Ubo,
+    frame_buffer: ?c_uint = null,
+    texture: ?c_uint = null,
+    ubo: Ubo = .{},
 
     const Self = OpenGL;
 
@@ -67,7 +67,7 @@ const OpenGL = struct {
     };
 
     const Shader = struct {
-        id: ?c_uint = null,
+        id: ?gl.Uint = null,
         code: []u8 = undefined, // trasformare in un array di righe per permettere di aggiungere define senza concat
 
         const Type = enum(comptime_int) {
@@ -80,17 +80,17 @@ const OpenGL = struct {
         };
 
         fn compile(self: *Shader, shader_type: Shader.Type, error_buf: []u8) !void  {
-            const shader = gl.createShader(shader_type);
+            const shader = gl.createShader(@intFromEnum(shader_type));
             if (shader == 0) return OpenGL.Error.ResourceCreation;
             self.id = shader;
 
-            gl.shaderSource(shader, 1, @ptrCast(self.code), null);
+            gl.shaderSource(shader, 1, @ptrCast(&self.code), null);
 
             var shader_compiled: gl.Int = undefined;
             gl.compileShader(shader);
             gl.getShaderiv(shader, gl.COMPILE_STATUS, &shader_compiled);
             if (shader_compiled != gl.TRUE) {
-                gl.getShaderInfoLog(shader, error_buf.len, null, @ptrCast(error_buf));
+                gl.getShaderInfoLog(shader, @intCast(error_buf.len), null, @ptrCast(error_buf));
                 return Shader.Error.CompilationFail;
             }
         }
@@ -108,32 +108,47 @@ const OpenGL = struct {
             if (program == 0) return OpenGL.Error.ResourceCreation;
             self.id = program;
 
-            gl.attachShader(program, vertex.id);
-            gl.attachShader(program, fragment.id);
-            gl.linkProgram();
-
+            gl.attachShader(program, vertex.id.?);
+            gl.attachShader(program, fragment.id.?);
+            gl.linkProgram(program);
             var program_linked: gl.Int = undefined;
             gl.getProgramiv(program, gl.LINK_STATUS, &program_linked);
             if (program_linked != gl.TRUE) {
-                gl.getProgramInfoLog(program, error_buf.len, null, @ptrCast(error_buf));
+                gl.getProgramInfoLog(program, @intCast(error_buf.len), null, @ptrCast(error_buf));
                 return Program.Error.LinkFail;
             }
         }
     };
 
     const Ubo = struct {
-        resolution: c_int,
-        time: c_int,
-        cam_fov: c_int,
-        cam_pos: c_int,
-        cam_rot: c_int,
-        crank_angle: c_int,
-        depth_tex: c_int,
+        id: gl.Uint = 0,
+        binding_point: gl.Uint = 0,
+        frame_data: extern struct {
+            crank_angle: f32 = undefined,
+            fov: f32 = undefined,
+            rotation: [4]f32 = undefined,
+            position: [3]f32 = undefined,
+        } = .{},
+
+        fn create(self: *Ubo) void {
+            gl.genBuffers(1, &self.id);
+            gl.bindBufferBase(gl.UNIFORM_BUFFER, self.binding_point, self.id);
+            gl.bufferData(gl.UNIFORM_BUFFER, @sizeOf(@TypeOf(self.frame_data)), &self.frame_data, gl.DYNAMIC_DRAW);
+        }
+
+        pub fn update(self: *Ubo, cam: *Camera, sim_state: *@TypeOf(sim.new(.{}))) void {
+            self.frame_data.fov = cam.fov;
+            self.frame_data.position = cam.position.toArray();
+            self.frame_data.rotation = cam.rotation.toVec4().toArray();
+            self.frame_data.crank_angle = @floatCast(sim_state.crank_angle);
+
+            gl.bufferSubData(gl.UNIFORM_BUFFER, 0, @sizeOf(@TypeOf(self.frame_data)), &self.frame_data);
+        }
     };
 
-    pub fn setupCanvas(self: *Self) void {
-        gl.genBuffers(1, &self.vbo);
-        gl.bindBuffer(gl.ARRAY_BUFFER, self.vbo);
+    fn setupCanvas(self: *Self) void {
+        gl.genBuffers(1, &self.buffers.vbo);
+        gl.bindBuffer(gl.ARRAY_BUFFER, self.buffers.vbo);
         gl.bufferData(
             gl.ARRAY_BUFFER,
             @sizeOf(@TypeOf(consts.CANVAS_VERTS)),
@@ -141,8 +156,8 @@ const OpenGL = struct {
             gl.STATIC_DRAW
         );
 
-        gl.genVertexArrays(1, &self.vao);
-        gl.bindVertexArray(self.vao);
+        gl.genVertexArrays(1, &self.buffers.vao);
+        gl.bindVertexArray(self.buffers.vao);
         gl.vertexAttribPointer(
             0,
             consts.VERT_SIZE,
@@ -154,7 +169,7 @@ const OpenGL = struct {
         gl.enableVertexAttribArray(0);
     }
 
-    fn loadFile(dir: std.fs.Dir, file: []u8, allocator: std.mem.Allocator) ![]u8 {
+    fn loadFile(dir: std.fs.Dir, file: []const u8, allocator: std.mem.Allocator) ![]u8 {
         return try dir.readFileAllocOptions(
             allocator,
             file,
@@ -169,34 +184,36 @@ const OpenGL = struct {
         var shader_dir = try std.fs.cwd().openDir(consts.SHADER_DIR, .{});
         defer shader_dir.close();
 
-        const vertex_code = try loadFile(consts.VERTEX_FILE, allocator);
+        const vertex_code = try loadFile(shader_dir, consts.VERTEX_FILE, allocator);
         self.shaders.vertex.code = vertex_code;
 
-        const scene_code = try loadFile(consts.SCENE_FILE, allocator);
+        const scene_code = try loadFile(shader_dir, consts.SCENE_FILE, allocator);
         defer allocator.free(scene_code);
-        const pass1_code = try loadFile(consts.PASS1_FILE, allocator);
+        const pass1_code = try loadFile(shader_dir, consts.PASS1_FILE, allocator);
         defer allocator.free(pass1_code);
-        const pass2_code = try loadFile(consts.PASS2_FILE, allocator);
+        const pass2_code = try loadFile(shader_dir, consts.PASS2_FILE, allocator);
         defer allocator.free(pass2_code);
 
-        const frag1_code = try std.mem.concat(allocator, u8, .{consts.PASS1_DEFINE, scene_code, pass1_code});
+        const frag1_code = try std.mem.concat(allocator, u8, &[_][]const u8{consts.PASS1_DEFINE, pass1_code, scene_code});
         self.shaders.fragments[0].code = frag1_code;
-        const frag2_code = try std.mem.concat(allocator, u8, .{consts.PASS2_DEFINE, scene_code, pass2_code});
+        const frag2_code = try std.mem.concat(allocator, u8, &[_][]const u8{consts.PASS2_DEFINE, pass2_code, scene_code});
         self.shaders.fragments[1].code = frag2_code;
 
+        var stderr_buf: [64]u8 = undefined;
+        var writer = std.fs.File.stderr().writer(&stderr_buf);
         var buf: [consts.INFO_LOG_MAX]u8 = undefined;
-        self.shaders.vertex.compile(&buf, Shader.Type.vertex) catch |err| {
+        self.shaders.vertex.compile(Shader.Type.vertex, &buf) catch |err| {
             if (err == Shader.Error.CompilationFail) {
-                var stderr_buf: [64]u8 = undefined;
-                std.fs.File.stderr().writer(&stderr_buf).interface.print("[Vertex] {s}", .{buf});
+                try writer.interface.print("[Vertex] {s}", .{buf});
+                try writer.interface.flush();
                 return err;
             }
         };
         inline for (self.shaders.fragments, 0..) |_, i| {
-            self.shaders.fragments[i].compile(&buf, Shader.Type.fragment) catch |err| {
+            self.shaders.fragments[i].compile(Shader.Type.fragment, &buf) catch |err| {
                 if (err == Shader.Error.CompilationFail) {
-                    var stderr_buf: [64]u8 = undefined;
-                    std.fs.File.stderr().writer(&stderr_buf).interface.print("[Fragment {d}] {s}", .{i, buf});
+                    try writer.interface.print("[Fragment {d}] {s}", .{i, buf});
+                    try writer.interface.flush();
                     return err;
                 }
             };
@@ -206,18 +223,23 @@ const OpenGL = struct {
     fn createPrograms(self: *Self) !void {
         var buf: [consts.INFO_LOG_MAX]u8 = undefined;
 
-        for (self.programs, 0..) |_, i| {
+        var stderr_buf: [64]u8 = undefined;
+        var writer = std.fs.File.stderr().writer(&stderr_buf);
+        for (self.programs, 0..) |program, i| {
             self.programs[i].link(
                 self.shaders.vertex,
                 self.shaders.fragments[i],
                 &buf
             ) catch |err| {
                 if (err == Program.Error.LinkFail) {
-                    var stderr_buf: [64]u8 = undefined;
-                    std.fs.File.stderr().writer(&stderr_buf).interface.print("[Program {d}] {s}", .{i, buf});
+                    try writer.interface.print("[Program {d}] {s}", .{i, buf});
+                    try writer.interface.flush();
                     return err;
                 }
             };
+
+            const block_i = gl.getUniformBlockIndex(program.id.?, "FrameData");
+            gl.uniformBlockBinding(program.id.?, block_i, self.ubo.binding_point);
         }
     }
 
@@ -231,8 +253,8 @@ const OpenGL = struct {
         self.texture = depth_tex;
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, depth_tex);
-        const tex_width = width / consts.RES_REDUCTION;
-        const tex_height = height / consts.RES_REDUCTION;
+        const tex_width = @divFloor(width, consts.RES_REDUCTION);
+        const tex_height = @divFloor(height, consts.RES_REDUCTION);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, tex_width, tex_height, 0, gl.RED, gl.FLOAT, null);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
@@ -245,9 +267,11 @@ const OpenGL = struct {
     }
 
     pub fn setupPipeline(self: *Self, allocator: std.mem.Allocator) !void {
+        self.setupCanvas();
+        self.ubo.create();
         try self.loadShaders(allocator);
         try self.createPrograms();
-        createInterPassFrameBuffer();
+        self.createInterPassFrameBuffer();
     }
 
     pub fn firstPass(self: *Self) void {
@@ -266,18 +290,15 @@ const OpenGL = struct {
         var width: c_int = undefined;
         var height: c_int = undefined;
         glfw.getFramebufferSize(self.context, &width, &height);
-        gl.viewport(0, 0, width / consts.RES_REDUCTION, height / consts.RES_REDUCTION);
+        gl.viewport(0, 0, @divFloor(width, consts.RES_REDUCTION), @divFloor(height, consts.RES_REDUCTION));
         gl.drawArrays(gl.TRIANGLES, 0, consts.CANVAS_VERTS.len / consts.VERT_SIZE);
-    }
-
-    pub fn updateUniforms(seld: *Self) {
-
     }
 
     pub fn cleanup(self: *Self, allocator: std.mem.Allocator) void {
         // elimino buffer
-        gl.deleteBuffers(1, &self.buffers.vbo.?);
-        gl.deleteVertexArrays(1, &self.buffers.vao.?);
+        gl.deleteBuffers(1, &self.buffers.vbo);
+        gl.deleteVertexArrays(1, &self.buffers.vao);
+        gl.deleteBuffers(1, &self.ubo.id);
         // shader
         gl.deleteShader(self.shaders.vertex.id.?);
         gl.deleteShader(self.shaders.fragments[0].id.?);
@@ -291,9 +312,9 @@ const OpenGL = struct {
         gl.deleteTextures(1, self.texture.?);
 
         // anche codice shader in mem CPU
-        allocator.free(self.shaders.vertex.code));
-        allocator.free(self.shaders.fragments[0].code));
-        allocator.free(self.shaders.fragments[1].code));
+        allocator.free(self.shaders.vertex.code);
+        allocator.free(self.shaders.fragments[0].code);
+        allocator.free(self.shaders.fragments[1].code);
     }
 };
 

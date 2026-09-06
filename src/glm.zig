@@ -1,11 +1,10 @@
 const std = @import("std");
-const consts = @import("constants.zig");
 const math = std.math;
 
 pub const EPS = 1e-6;
 
 inline fn approxEq(a: f32, b: f32) bool { // inline non dovrebbe avere parametri comptime?
-    return std.math.approxEqAbs(f32, a, b, consts.EPS);
+    return std.math.approxEqAbs(f32, a, b, EPS);
 }
 
 pub fn Vec(dim: usize) type {
@@ -245,6 +244,15 @@ pub const Quaternion = struct {
             .x = self.i,
             .y = self.j,
             .z = self.k,
+        };
+    }
+
+    pub fn toVec4(self: Self) Vec(4) {
+        return .{
+            .x = self.w,
+            .y = self.i,
+            .z = self.j,
+            .w = self.k,
         };
     }
 };

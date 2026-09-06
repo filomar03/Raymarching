@@ -1,10 +1,13 @@
 implementare:
-provare nome file senza .zig
-unificare le shader (avere una shader unica visto che la maggior parte del codice e' condiviso, cosi da compilare primo o secondo passo in base a delle costanti)
+helper per aggiungere o togliere righe da shader facilmente
+rogliere risoluzione da uniform
+togliere context da opengl state e salvare direttamente le dimensioni del fb
+far compilare
 aggiornare a opengl 4.6
 debug callback
-convertire uniform in ssbo
-invece che avere 2 fragment facciamo primo passo in vertex cosi da avere un solo program
+convertire ubo in ssbo
+define aggiunti nelle shader dinamicamente in modo da essere modificabili
+invece che avere 2 fragment facciamo primo passo in vertex cosi da avere un solo program ( da provare su un altro branch)
 spostare su CPU i calcoli non necessari
 modificare cambio velocita (logaritmica rispetto ad 2 asisntoti)
 visualizzazione informazioni come testo rasterizzato sulla finestra invece che in console
@@ -15,5 +18,7 @@ ray packing per i riflessi (praticamente si tratta di unire i punti e i raggi de
 gestire scene oggetti non hardcoded
 
 fix:
+stringa errore compilazione shader (stampare fino a \0)
+togliere lo \0 finale dalle string literal
 sistemare pin meno sporgente dai bordi del pistone (rientrante rispetto al pistone)
 sistemare asta che connette pistone e conrod piu in alto
