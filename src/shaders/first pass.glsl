@@ -1,14 +1,15 @@
 out float Distance;
 
 layout (std140) uniform FrameData {
-    vec2 resolution;
     float crank_angle;
-    flaot fov;
+    float fov;
     vec4 rotation;
     vec3 position;
 };
 
 // - RENDERING PARAMS
+#define RESOLUTION vec2(800, 800)
+#define RATIO 1
 #define MAX_STEP 1000
 #define HIT_DISTANCE 0.001
 #define MAX_TRAVEL 30.0
@@ -26,8 +27,7 @@ float coneMarch(vec3 p, vec3 ray) {
     int step = 0;
     float travel = 0;
 
-    float ratio = uResolution.x / uResolution.y;
-    float rad_per_pixel = radians(uFov) / (2 * uResolution.y)
+    float rad_per_pixel = radians(uFov) / (2 * RESOLUTION.y)
     float depth_pixel_size_ratio = tan(rad_per_pixel);
     float pixel_diag = sqrt(1 + ratio * ratio);
 
@@ -46,7 +46,7 @@ float coneMarch(vec3 p, vec3 ray) {
         p += ray * distance;
         travel += distance;
 
-        float cone_r = travel * depth_pixel_size_ratio * ;
+        float cone_r = travel * depth_pixel_size_ratio * pixel_diag;
         // cone that cover the entire pixel (radius = pixel diag)
 
         step++;
@@ -59,10 +59,9 @@ void main()
 {
     computeFrameValues(); // This computes constant that mantain their values for the entire frame,
                           // it has to be done this way cause the model is hardcoded in shader
-
-    float aspect_ratio = uResolution.x / uResolution.y;
+    float aspect_ratio = RESOLUTION.x / RESOLUTION.y;
     float fov_scale = tan(radians(uFov / 2)); // projection plane half height over near distance factor
-    vec2 ndc = gl_FragCoord.xy / uResolution * 2.0 - 1;
+    vec2 ndc = gl_FragCoord.xy / RESOLUTION * 2.0 - 1;
     ndc *= fov_scale; // scale to adjust for FOV (no need to mul by near since it's 1)
     ndc.x *= aspect_ratio; // scale x to maintain ratio
 

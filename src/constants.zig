@@ -14,6 +14,8 @@ pub const WINDOW_CURSOR_MODE = glfw.Cursor.Mode.normal;
 pub const OPENGL_MAJOR = 3;
 pub const OPENGL_MINOR = 3;
 
+
+// PIPELINE
 pub const VERT_SIZE = 3;
 pub const CANVAS_VERTS = [_]gl.Float{
     -1.0, -1.0, -1.0,
@@ -70,7 +72,9 @@ pub const VERTEX_FILE = "vertex.glsl";
 pub const SCENE_FILE = "scene.glsl";
 pub const PASS1_FILE = "first pass.glsl";
 pub const PASS2_FILE = "second pass.glsl";
+pub const GEN_FRAG1 = "generated frag1.glsl";
+pub const GEN_FRAG2 = "generated frag2.glsl";
 
-pub const MAX_DEFINES = 5;
+pub const GLSL_VER_DEFINE = "#version 330 core\n";
 pub const PASS1_DEFINE = "#define FIRST_PASS\n";
 pub const PASS2_DEFINE = "#define SECOND_PASS\n";

@@ -3,7 +3,7 @@ out vec4 FragColor;
 layout (std140) uniform FrameData {
     vec2 resolution;
     float crank_angle;
-    flaot fov;
+    float fov;
     vec4 rotation;
     vec3 position;
 };

@@ -84,6 +84,13 @@ const OpenGL = struct {
             if (shader == 0) return OpenGL.Error.ResourceCreation;
             self.id = shader;
 
+            var buf: [64]u8 = undefined;
+            var w = (try std.fs.openFileAbsolute("/home/filo/Desktop/Raymarching/src/shaders/prova", .{
+                .mode = .write_only
+            })).writer(&buf);
+            w.interface.print("{s}", .{self.code}) catch {};
+            w.interface.flush() catch {};
+
             gl.shaderSource(shader, 1, @ptrCast(&self.code), null);
 
             var shader_compiled: gl.Int = undefined;
@@ -181,6 +188,7 @@ const OpenGL = struct {
     }
 
     fn loadShaders(self: *Self, allocator: std.mem.Allocator) !void {
+        // Read from files
         var shader_dir = try std.fs.cwd().openDir(consts.SHADER_DIR, .{});
         defer shader_dir.close();
 
@@ -194,14 +202,26 @@ const OpenGL = struct {
         const pass2_code = try loadFile(shader_dir, consts.PASS2_FILE, allocator);
         defer allocator.free(pass2_code);
 
-        const frag1_code = try std.mem.concat(allocator, u8, &[_][]const u8{consts.PASS1_DEFINE, pass1_code, scene_code});
+        // Generate fragments
+        const frag1_code = try std.mem.concat(allocator, u8, &[_][]const u8{consts.PASS1_DEFINE[0..37], pass1_code, scene_code});
         self.shaders.fragments[0].code = frag1_code;
         const frag2_code = try std.mem.concat(allocator, u8, &[_][]const u8{consts.PASS2_DEFINE, pass2_code, scene_code});
         self.shaders.fragments[1].code = frag2_code;
 
-        var stderr_buf: [64]u8 = undefined;
-        var writer = std.fs.File.stderr().writer(&stderr_buf);
         var buf: [consts.INFO_LOG_MAX]u8 = undefined;
+
+        // Write generated fragments to file
+        const gen_files = [2][]const u8{consts.GEN_FRAG1,consts.GEN_FRAG2};
+        const gen_code = [2][]u8{frag1_code,frag2_code};
+        for (gen_files, gen_code) |file, code| {
+            const gen_frag = try shader_dir.createFile(file, .{});
+            defer gen_frag.close();
+            const gen_frag_writer = gen_frag.writer(&buf);
+            gen_frag_writer.interface.print("{s}", .{code});
+        }
+
+        // Compile e log error
+        var writer = std.fs.File.stderr().writer(&buf);
         self.shaders.vertex.compile(Shader.Type.vertex, &buf) catch |err| {
             if (err == Shader.Error.CompilationFail) {
                 try writer.interface.print("[Vertex] {s}", .{buf});
