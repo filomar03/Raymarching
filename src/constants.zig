@@ -75,6 +75,6 @@ pub const PASS2_FILE = "second pass.glsl";
 pub const GEN_FRAG1 = "generated frag1.glsl";
 pub const GEN_FRAG2 = "generated frag2.glsl";
 
-pub const GLSL_VER_DEFINE = "#version 330 core\n";
+pub const GLSL_VERSION = "#version 330 core\n";
 pub const PASS1_DEFINE = "#define FIRST_PASS\n";
 pub const PASS2_DEFINE = "#define SECOND_PASS\n";

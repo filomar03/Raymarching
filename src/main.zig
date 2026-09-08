@@ -15,6 +15,7 @@ pub fn main() !void {
 
     var gpa: std.heap.DebugAllocator(.{}) = .init;
     const allocator = gpa.allocator();
+    defer _ = gpa.detectLeaks();
 
     var state = engine.State{
         .opengl = .{
@@ -74,8 +75,6 @@ pub fn main() !void {
             try stdout.flush();
         }
     }
-
-    _ = gpa.detectLeaks();
 }
 
 fn getInput(state: *engine.State) void {

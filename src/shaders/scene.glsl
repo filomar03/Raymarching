@@ -175,7 +175,7 @@ float conrod_y[phases.length()];
 
 void computeFrameValues() {
     for (int i = 0; i < phases.length(); i++) {
-        crank_pin_angle[i] = uCrankAngle + phases[i];
+        crank_pin_angle[i] = crank_angle + phases[i];
         cylinder_offset[i] = Z * (cylinder_bore + cylinder_spacing) * i;
         crank_pin_offset[i] = vec3(cos(crank_pin_angle[i]), sin(crank_pin_angle[i]), 0.0) * crank_radius;
         conrod_y[i] = sqrt(conrod_length * conrod_length - crank_pin_offset[i].x * crank_pin_offset[i].x);
@@ -184,7 +184,7 @@ void computeFrameValues() {
 
 #ifdef FIRST_PASS
 float map(vec3 p) {
-#elif SECOND_PASS
+#elif defined(SECOND_PASS)
 SceneInfo map(vec3 p) {
 #endif
     vec3 engine_pos = p - abs_eng_position;
@@ -277,7 +277,7 @@ SceneInfo map(vec3 p) {
     }
 
     // TIMING GEAR
-    float d_crank_gear = sdGear(timing_gear_pos, timing_gear_radius, timing_gear_thickness, timing_gear_teeth, timing_gear_tdepth, uCrankAngle);
+    float d_crank_gear = sdGear(timing_gear_pos, timing_gear_radius, timing_gear_thickness, timing_gear_teeth, timing_gear_tdepth, crank_angle);
     float d_timing_gear = d_crank_gear;
 
     // BLOCK
@@ -303,7 +303,7 @@ SceneInfo map(vec3 p) {
     scene = opUnion(scene, d_rings);
     scene = opUnion(scene, d_cranks);
     scene = opUnion(scene, d_timing_gear);
-#elif SECOND_PASS
+#elif defined(SECOND_PASS)
     SceneInfo scene = SceneInfo(d_pistons, MAT_PISTON);
 
     if (d_block < scene.distance) scene.mat_index = MAT_BLOCK;

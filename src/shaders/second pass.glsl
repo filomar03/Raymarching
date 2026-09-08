@@ -1,13 +1,16 @@
 out vec4 FragColor;
 
 layout (std140) uniform FrameData {
-    vec2 resolution;
-    float crank_angle;
-    float fov;
     vec4 rotation;
     vec3 position;
+    float fov;
+    float crank_angle;
 };
 
+uniform sampler2D depth_sampler; // initialized to 0 by default, so it's good as long as activated texture is 0
+
+#define RESOLUTION vec2(800, 800)
+#define RATIO 1
 
 // - RENDERING PARAMS
 #define HIT_DISTANCE 0.0001
@@ -97,6 +100,7 @@ vec3 rotate(vec4 q, vec3 p) { // fast formula to rotate a point with a unit quat
     return p + 2 * q.w * cross(q.xyz, p) + 2 * cross(q.xyz, cross(q.xyz, p));
 }
 
+void computeFrameValues();
 SceneInfo map(vec3 p);
 
 HitInfo rayMarch(vec3 p, vec3 ray) {
@@ -107,7 +111,7 @@ HitInfo rayMarch(vec3 p, vec3 ray) {
         SceneInfo scene = map(p);
 
         if (abs(scene.distance) <= HIT_DISTANCE) {
-            return HitInfo(HIT, travel + distance, step, scene.distance, scene.mat_index);
+            return HitInfo(HIT, travel + scene.distance, step, scene.distance, scene.mat_index);
         }
 
         p += ray * scene.distance;
@@ -148,8 +152,7 @@ vec3 computeSpecular(vec3 p, vec3 norm, vec3 observer_pos, Light l, Material mat
     float spec_feature = pow(max(0, dot(reflection, p2observer_dir)), mat.shininess);
 #ifdef CEL_SHADING
     return floor(spec_feature * l.color * l.intensity * CEL_SHADING_Q) / CEL_SHADING_Q;
-#endif
-#ifndef CEL_SHADING
+#else
     return spec_feature * l.color * l.intensity;
 #endif
 }
@@ -159,23 +162,22 @@ void main()
     computeFrameValues(); // This computes constant that mantain their values for the entire frame,
                           // it has to be done this way cause the model is hardcoded in shader
 
-    float aspect_ratio = uResolution.x / uResolution.y;
-    float fov_scale = tan(radians(uFov / 2)); // projection plane half height over near distance factor
-    vec2 ndc = gl_FragCoord.xy / uResolution * 2.0 - 1;
+    float fov_scale = tan(radians(fov / 2)); // projection plane half height over near distance factor
+    vec2 ndc = gl_FragCoord.xy / RESOLUTION * 2.0 - 1;
     ndc *= fov_scale; // scale to adjust for FOV (no need to mul by near since it's 1)
-    ndc.x *= aspect_ratio; // scale x to maintain ratio
+    ndc.x *= RATIO; // scale x to maintain ratio
 
-    vec2 uv = gl_FragCoord.xy / uResolution;
+    vec2 uv = gl_FragCoord.xy / RESOLUTION;
 #ifdef DEBUG_SKIP_DEPTH_TEX
     float approx_dist = 0;
 #else
-    float approx_dist = texture(uSampler, uv).r;
+    float approx_dist = texture(depth_sampler, uv).r;
 #endif
 
-    vec3 p = uCamPos;
-    vec3 ray = normalize(rotate(uCamRot, vec3(ndc, 1))); // near fixes as 1, since it doesn't work
+    vec3 p = position;
+    vec3 ray = normalize(rotate(rotation, vec3(ndc, 1))); // near fixes as 1, since it doesn't work
                                                          // like in traditional rendering
-    vec3 observer_position = uCamPos;
+    vec3 observer_position = p;
     p += ray * approx_dist;
 
     float ray_energy = 1.0;
@@ -245,7 +247,7 @@ void main()
                     Light l = lights[i];
 
                     if (l.follow_cam) {
-                        l.position += uCamPos;
+                        l.position += position;
                     }
 
                     diffuse += computeDiffuse(p, norm, l);
@@ -290,8 +292,7 @@ void main()
     float b = step(m, 3.0) * step(2.0, m);
     vec3 crtMask = vec3(r, g, b);
     FragColor = vec4(final_color * crtMask, 1);
-#endif
-#ifndef CRT_EFFECT
+#else
     FragColor = vec4(final_color, 1);
 #endif
 }

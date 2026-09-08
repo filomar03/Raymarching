@@ -84,13 +84,6 @@ const OpenGL = struct {
             if (shader == 0) return OpenGL.Error.ResourceCreation;
             self.id = shader;
 
-            var buf: [64]u8 = undefined;
-            var w = (try std.fs.openFileAbsolute("/home/filo/Desktop/Raymarching/src/shaders/prova", .{
-                .mode = .write_only
-            })).writer(&buf);
-            w.interface.print("{s}", .{self.code}) catch {};
-            w.interface.flush() catch {};
-
             gl.shaderSource(shader, 1, @ptrCast(&self.code), null);
 
             var shader_compiled: gl.Int = undefined;
@@ -131,10 +124,11 @@ const OpenGL = struct {
         id: gl.Uint = 0,
         binding_point: gl.Uint = 0,
         frame_data: extern struct {
-            crank_angle: f32 = undefined,
-            fov: f32 = undefined,
             rotation: [4]f32 = undefined,
             position: [3]f32 = undefined,
+            // _: u1 = undefined,
+            fov: f32 = undefined,
+            crank_angle: f32 = undefined,
         } = .{},
 
         fn create(self: *Ubo) void {
@@ -176,7 +170,7 @@ const OpenGL = struct {
         gl.enableVertexAttribArray(0);
     }
 
-    fn loadFile(dir: std.fs.Dir, file: []const u8, allocator: std.mem.Allocator) ![]u8 {
+    fn loadFile(dir: std.fs.Dir, file: []const u8, allocator: std.mem.Allocator) ![:0]u8 {
         return try dir.readFileAllocOptions(
             allocator,
             file,
@@ -203,9 +197,9 @@ const OpenGL = struct {
         defer allocator.free(pass2_code);
 
         // Generate fragments
-        const frag1_code = try std.mem.concat(allocator, u8, &[_][]const u8{consts.PASS1_DEFINE[0..37], pass1_code, scene_code});
+        const frag1_code = try std.mem.concat(allocator, u8, &[_][]const u8{consts.GLSL_VERSION, consts.PASS1_DEFINE, pass1_code, scene_code});
         self.shaders.fragments[0].code = frag1_code;
-        const frag2_code = try std.mem.concat(allocator, u8, &[_][]const u8{consts.PASS2_DEFINE, pass2_code, scene_code});
+        const frag2_code = try std.mem.concat(allocator, u8, &[_][]const u8{consts.GLSL_VERSION, consts.PASS2_DEFINE, pass2_code, scene_code});
         self.shaders.fragments[1].code = frag2_code;
 
         var buf: [consts.INFO_LOG_MAX]u8 = undefined;
@@ -216,8 +210,9 @@ const OpenGL = struct {
         for (gen_files, gen_code) |file, code| {
             const gen_frag = try shader_dir.createFile(file, .{});
             defer gen_frag.close();
-            const gen_frag_writer = gen_frag.writer(&buf);
-            gen_frag_writer.interface.print("{s}", .{code});
+            var gen_frag_writer = gen_frag.writer(&buf);
+            try gen_frag_writer.interface.print("{s}", .{code});
+            try gen_frag_writer.interface.flush();
         }
 
         // Compile e log error
@@ -245,7 +240,7 @@ const OpenGL = struct {
 
         var stderr_buf: [64]u8 = undefined;
         var writer = std.fs.File.stderr().writer(&stderr_buf);
-        for (self.programs, 0..) |program, i| {
+        for (&self.programs, 0..) |*program, i| {
             self.programs[i].link(
                 self.shaders.vertex,
                 self.shaders.fragments[i],
@@ -327,9 +322,9 @@ const OpenGL = struct {
         gl.deleteProgram(self.programs[0].id.?);
         gl.deleteProgram(self.programs[1].id.?);
         // framebuffer
-        gl.deleteFramebuffers(1, self.frame_buffer.?);
-        // texture
-        gl.deleteTextures(1, self.texture.?);
+        // gl.deleteFramebuffers(1, self.frame_buffer.?);
+        // // texture
+        // gl.deleteTextures(1, self.texture.?);
 
         // anche codice shader in mem CPU
         allocator.free(self.shaders.vertex.code);
