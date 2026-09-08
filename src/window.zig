@@ -1,8 +1,7 @@
 const glfw = @import("zglfw");
-const opengl = @import("zopengl");
 const consts = @import("constants.zig");
 
-const Options = struct {
+pub const Options = struct {
      width: ?c_int = null,
      height: ?c_int = null,
      resizable: ?bool = null,
@@ -30,12 +29,6 @@ const Options = struct {
 
      glfw.makeContextCurrent(window);
      glfw.swapInterval(opts.swap_int orelse consts.WINDOW_SWAP_INT);
-
-     try opengl.loadCoreProfile(
-         glfw.getProcAddress,
-         consts.OPENGL_MAJOR,
-         consts.OPENGL_MAJOR
-     );
 
      _ = glfw.setScrollCallback(window, opts.scroll_cllbck);
      _ = glfw.setFramebufferSizeCallback(window, opts.resize_cllbck);

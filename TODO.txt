@@ -1,5 +1,6 @@
 implementare:
 far compilare
+provare ad invertire ordine rotazione
 togliere context da opengl state e salvare direttamente le dimensioni del fb
 shader come interfaccia (vtable anyopaque) in modo che ogni i 2 tipi possano avere le loro define custom
 possibilita di ricompilare singola shader, potenzialmente in modo automatico con observer, oppure mettere tutto in ubo (potenzialmente anche qua con observer)

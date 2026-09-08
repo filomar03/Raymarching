@@ -2,30 +2,30 @@ const std = @import("std");
 const glfw = @import("zglfw");
 const sim = @import("simulation");
 const consts = @import("constants.zig");
-const window = @import("window.zig");
+const Window = @import("window.zig");
 const engine = @import("engine.zig");
 const glm = @import("glm.zig");
+const simState = @TypeOf(sim.new(.{}));
 
 pub fn main() !void {
     try glfw.init();
     defer glfw.terminate();
 
-    const context = try window.create(.{});
-    defer context.destroy();
+    const window = try Window.create(.{});
+    defer window.destroy();
 
     var gpa: std.heap.DebugAllocator(.{}) = .init;
     const allocator = gpa.allocator();
     defer _ = gpa.detectLeaks();
 
-    var state = engine.State{
-        .opengl = .{
-            .context = context
-        }
-    };
+    var state = try engine.State.init(
+        window.getFramebufferSize(),
+        glfw.getProcAddress
+    );
     defer state.opengl.cleanup(allocator);
 
-    context.setUserPointer(&state);
-    defer context.setUserPointer(null);
+    window.setUserPointer(&state);
+    defer window.setUserPointer(null);
 
     var stdout_buf: [64]u8 = undefined;
     var stderr_buf: [64]u8 = undefined;
@@ -47,18 +47,18 @@ pub fn main() !void {
     });
 
     var last_dbg_update: f32 = 0;
-    while (!state.opengl.context.shouldClose()) {
+    while (!window.shouldClose()) {
         const now = @as(f32, @floatCast(glfw.getTime()));
         state.time.dt = now - state.time.now;
         state.time.now = now;
 
         glfw.pollEvents();
-        getInput(&state);
+        getInput(window, &state);
 
         state.opengl.ubo.update(&state.camera, &state.simulation);
         state.opengl.firstPass();
         state.opengl.secondPass();
-        context.swapBuffers();
+        window.swapBuffers();
 
         state.performance.addFrametime(state.time.dt);
         if (now - last_dbg_update >= consts.DBG_UPDATE_INTERVAL) {
@@ -77,88 +77,81 @@ pub fn main() !void {
     }
 }
 
-fn getInput(state: *engine.State) void {
-    moveCamera(state);
-    rotateCamera(state);
-    advanceSimulation(state);
-    detectQuit(state.opengl.context);
+fn getInput(window: *glfw.Window, state: *engine.State) void {
+    moveCamera(window, &state.camera, state.time.dt);
+    rotateCamera(window, &state.camera);
+    advanceSimulation(window, &state.simulation, state.time.dt);
+    detectQuit(window);
 }
 
 var cam_speed = consts.CAM_SPEED_DEF;
-fn moveCamera(state: *engine.State) void {
-    const context = state.opengl.context;
-    const forward: f32 = @floatFromInt(@intFromBool(context.getKey(glfw.Key.w) == glfw.Action.press));
-    const backwards: f32 = @floatFromInt(@intFromBool(context.getKey(glfw.Key.s) == glfw.Action.press));
-    const right: f32 = @floatFromInt(@intFromBool(context.getKey(glfw.Key.d) == glfw.Action.press));
-    const left: f32 = @floatFromInt(@intFromBool(context.getKey(glfw.Key.a) == glfw.Action.press));
-    const up: f32 = @floatFromInt(@intFromBool(context.getKey(glfw.Key.e) == glfw.Action.press));
-    const down: f32 = @floatFromInt(@intFromBool(context.getKey(glfw.Key.q) == glfw.Action.press));
-    const jump: f32 = @floatFromInt(@intFromBool(context.getKey(glfw.Key.space) == glfw.Action.press));
-    const crouch: f32 = @floatFromInt(@intFromBool(context.getKey(glfw.Key.left_control) == glfw.Action.press));
+fn moveCamera(window: *glfw.Window, cam: *engine.Camera, dt: f32) void {
+    const forward: f32 = @floatFromInt(@intFromBool(window.getKey(glfw.Key.w) == glfw.Action.press));
+    const backwards: f32 = @floatFromInt(@intFromBool(window.getKey(glfw.Key.s) == glfw.Action.press));
+    const right: f32 = @floatFromInt(@intFromBool(window.getKey(glfw.Key.d) == glfw.Action.press));
+    const left: f32 = @floatFromInt(@intFromBool(window.getKey(glfw.Key.a) == glfw.Action.press));
+    const up: f32 = @floatFromInt(@intFromBool(window.getKey(glfw.Key.e) == glfw.Action.press));
+    const down: f32 = @floatFromInt(@intFromBool(window.getKey(glfw.Key.q) == glfw.Action.press));
+    const jump: f32 = @floatFromInt(@intFromBool(window.getKey(glfw.Key.space) == glfw.Action.press));
+    const crouch: f32 = @floatFromInt(@intFromBool(window.getKey(glfw.Key.left_control) == glfw.Action.press));
 
     const cam_mov: glm.Vec3 = .{ .x = right + -left, .y = up + -down, .z = forward + -backwards };
     var world_mov = glm.Vec3{ .y = jump + -crouch };
-    world_mov = world_mov.sum(state.camera.rotation.rotateVec(cam_mov)).normalize();
+    world_mov = world_mov.sum(cam.rotation.rotateVec(cam_mov)).normalize();
 
-    var pos = &state.camera.position;
-    pos.* = pos.sum(world_mov.mul(cam_speed).mul(state.time.dt));
+    cam.position = cam.position.sum(world_mov.mul(cam_speed).mul(dt));
 }
 
 var prev_mx: f64 = 0;
 var prev_my: f64 = 0;
-fn rotateCamera(state: *engine.State) void {
-    const mx, const my = state.opengl.context.getCursorPos();
+fn rotateCamera(window: *glfw.Window, cam: *engine.Camera) void {
+    const mx, const my = window.getCursorPos();
     const dmx = @as(f32, @floatCast(mx - prev_mx));
     const dmy = @as(f32, @floatCast(my - prev_my));
 
-    const rot = &state.camera.rotation;
-
     const y_angle = dmx * consts.CAM_SENS;
-    const y_rot = glm.Quaternion.fromAxis(consts.Y_AXIS, y_angle);
-    rot.* = y_rot.mul(rot.*);
-
     const x_angle = dmy * consts.CAM_SENS;
-    const rotated_x_axis = rot.*.rotateVec(consts.X_AXIS);
-    const x_rot = glm.Quaternion.fromAxis(rotated_x_axis, x_angle);
 
-    rot.* = x_rot.mul(rot.*).normalize(); // normalize to stop errors from propagating through frames
+    const world_up = glm.Quaternion.fromAxis(consts.Y_AXIS, y_angle);
+    const y_rot_local = world_up.mul(cam.rotation);
+
+    const x_axis_local = y_rot_local.rotateVec(consts.X_AXIS);
+    const x_rot_local = glm.Quaternion.fromAxis(x_axis_local, x_angle);
+
+    cam.rotation = x_rot_local.mul(cam.rotation).normalize(); // normalize to stop errors from propagating through frames
 
     prev_mx = mx;
     prev_my = my;
 }
 
-fn advanceSimulation(state: *engine.State) void {
-    const context = state.opengl.context;
-
+fn advanceSimulation(window: *glfw.Window, simulation: *simState, dt: f32) void {
     const gas: f32 = @floatFromInt(
         @intFromBool(
-            context.getMouseButton(glfw.MouseButton.left) == glfw.Action.press
+            window.getMouseButton(glfw.MouseButton.left) == glfw.Action.press
         )
     );
-
     const brake: f32 = @floatFromInt(
         @intFromBool(
-            context.getMouseButton(glfw.MouseButton.right) == glfw.Action.press
+            window.getMouseButton(glfw.MouseButton.right) == glfw.Action.press
         )
     );
-
-    state.simulation.simulate(state.time.dt, gas, brake);
+    simulation.simulate(dt, gas, brake);
 }
 
-fn detectQuit(context: *glfw.Window) void {
-    if (context.getKey(glfw.Key.escape) == glfw.Action.press) {
-        context.setShouldClose(true);
+fn detectQuit(window: *glfw.Window) void {
+    if (window.getKey(glfw.Key.escape) == glfw.Action.press) {
+        window.setShouldClose(true);
     }
 }
 
 var cam_speed_mod: f32 = 1.0;
-fn scrollCallback(context: *glfw.Window, x_offset: f64, y_offset: f64) callconv(.c) void {
+fn scrollCallback(window: *glfw.Window, x_offset: f64, y_offset: f64) callconv(.c) void {
     _ = x_offset;
     const scroll = @as(f32, @floatCast(y_offset));
 
-    const state = context.getUserPointer(engine.State);
+    const state = window.getUserPointer(engine.State);
 
-    if (context.getKey(glfw.Key.left_shift) == glfw.Action.press) {
+    if (window.getKey(glfw.Key.left_shift) == glfw.Action.press) {
         cam_speed_mod = std.math.clamp(cam_speed_mod + scroll * consts.CAM_SPEED_MOD_DEF, 0.1, 10.0);
         cam_speed = consts.CAM_SPEED_DEF.mul(cam_speed_mod);
     } else {

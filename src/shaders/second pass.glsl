@@ -7,7 +7,7 @@ layout (std140) uniform FrameData {
     float crank_angle;
 };
 
-uniform sampler2D depth_sampler; // initialized to 0 by default, so it's good as long as activated texture is 0
+uniform sampler2D depth_sampler;
 
 #define RESOLUTION vec2(800, 800)
 #define RATIO 1
