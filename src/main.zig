@@ -104,24 +104,45 @@ fn moveCamera(window: *glfw.Window, cam: *engine.Camera, dt: f32) void {
 
 var prev_mx: f64 = 0;
 var prev_my: f64 = 0;
+var have_prev_cursor = false;
 fn rotateCamera(window: *glfw.Window, cam: *engine.Camera) void {
     const mx, const my = window.getCursorPos();
+    defer {
+        prev_mx = mx;
+        prev_my = my;
+        have_prev_cursor = true;
+    }
+
+    // The cursor starts wherever the OS put it, so the first frame's delta is
+    // measured against a position we never saw. Skip it instead of slamming the
+    // camera away from its initial orientation.
+    if (!have_prev_cursor) return;
+
     const dmx = @as(f32, @floatCast(mx - prev_mx));
     const dmy = @as(f32, @floatCast(my - prev_my));
 
     const y_angle = dmx * consts.CAM_SENS;
     const x_angle = dmy * consts.CAM_SENS;
 
+    // Yaw around the world up axis, so the horizon never rolls.
     const world_up = glm.Quaternion.fromAxis(consts.Y_AXIS, y_angle);
-    const y_rot_local = world_up.mul(cam.rotation);
+    const y_rot = world_up.mul(cam.rotation);
 
-    const x_axis_local = y_rot_local.rotateVec(consts.X_AXIS);
+    // Pitch around the camera's own right axis, taken after the yaw.
+    // rotateVec can drift a few ulps off unit length and fromAxis panics on that.
+    const x_axis_local = y_rot.rotateVec(consts.X_AXIS).normalize();
     const x_rot_local = glm.Quaternion.fromAxis(x_axis_local, x_angle);
 
-    cam.rotation = x_rot_local.mul(cam.rotation).normalize(); // normalize to stop errors from propagating through frames
+    // normalize to stop errors from propagating through frames
+    const new_rot = x_rot_local.mul(y_rot).normalize();
 
-    prev_mx = mx;
-    prev_my = my;
+    // Reject just the pitch when it would tip the camera past vertical and flip
+    // the view upside down; the yaw for this frame still applies.
+    const forward = new_rot.rotateVec(consts.Z_AXIS);
+    cam.rotation = if (@abs(forward.y) > consts.CAM_PITCH_LIMIT)
+        y_rot.normalize()
+    else
+        new_rot;
 }
 
 fn advanceSimulation(window: *glfw.Window, simulation: *simState, dt: f32) void {

@@ -111,6 +111,7 @@ const OpenGL = struct {
 
         const Error = error {
             LinkFail,
+            UniformBlockNotFound,
         };
 
         fn link(self: *Program, vertex: Shader, fragment: Shader, error_buf: []u8) !void {
@@ -132,18 +133,36 @@ const OpenGL = struct {
     const Ubo = struct {
         id: gl.Uint = 0,
         binding_point: gl.Uint = 0,
-        frame_data: extern struct {
-            rotation: [4]f32 = undefined,
-            position: [3]f32 = undefined,
-            _: u32 = undefined,
-            fov: f32 = undefined,
-            crank_angle: f32 = undefined,
-        } = .{},
+        frame_data: FrameData = .{},
+
+        /// Mirror of the `FrameData` uniform block in the shaders.
+        ///
+        /// std140 gives a vec3 an alignment of 16 but a size of only 12, so the
+        /// scalar declared after `position` packs into the vec3's tail at offset
+        /// 28 instead of starting a fresh 16-byte slot. `align(16)` on the first
+        /// field also rounds the struct up to 48 bytes, which is the block size
+        /// std140 reports: a smaller buffer would leave the block partly
+        /// out of range and read back as garbage.
+        const FrameData = extern struct {
+            rotation: [4]f32 align(16) = .{ 0, 0, 0, 1 }, // offset 0
+            position: [3]f32 = .{ 0, 0, 0 },             // offset 16
+            fov: f32 = 0,                                // offset 28
+            crank_angle: f32 = 0,                        // offset 32
+        };
+
+        comptime {
+            std.debug.assert(@offsetOf(FrameData, "rotation") == 0);
+            std.debug.assert(@offsetOf(FrameData, "position") == 16);
+            std.debug.assert(@offsetOf(FrameData, "fov") == 28);
+            std.debug.assert(@offsetOf(FrameData, "crank_angle") == 32);
+            std.debug.assert(@sizeOf(FrameData) == 48);
+        }
 
         fn create(self: *Ubo) void {
             gl.genBuffers(1, &self.id);
+            gl.bindBuffer(gl.UNIFORM_BUFFER, self.id);
+            gl.bufferData(gl.UNIFORM_BUFFER, @sizeOf(FrameData), &self.frame_data, gl.DYNAMIC_DRAW);
             gl.bindBufferBase(gl.UNIFORM_BUFFER, self.binding_point, self.id);
-            gl.bufferData(gl.UNIFORM_BUFFER, @sizeOf(@TypeOf(self.frame_data)), &self.frame_data, gl.DYNAMIC_DRAW);
         }
 
         pub fn update(self: *Ubo, cam: *Camera, sim_state: *@TypeOf(sim.new(.{}))) void {
@@ -152,7 +171,8 @@ const OpenGL = struct {
             self.frame_data.rotation = cam.rotation.toVec4().toArray();
             self.frame_data.crank_angle = @floatCast(sim_state.crank_angle);
 
-            gl.bufferSubData(gl.UNIFORM_BUFFER, 0, @sizeOf(@TypeOf(self.frame_data)), &self.frame_data);
+            gl.bindBuffer(gl.UNIFORM_BUFFER, self.id);
+            gl.bufferSubData(gl.UNIFORM_BUFFER, 0, @sizeOf(FrameData), &self.frame_data);
         }
     };
 
@@ -263,6 +283,12 @@ const OpenGL = struct {
             };
 
             const block_i = gl.getUniformBlockIndex(program.id, "FrameData");
+            if (block_i == gl.INVALID_INDEX) {
+                // Silently leaves the block unbound otherwise, which just renders black.
+                try writer.interface.print("[Program {d}] uniform block 'FrameData' not found\n", .{i});
+                try writer.interface.flush();
+                return Program.Error.UniformBlockNotFound;
+            }
             gl.uniformBlockBinding(program.id, block_i, self.ubo.binding_point);
 
             if (i == 1) {

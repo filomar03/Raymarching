@@ -8,7 +8,9 @@ pub const WINDOW_WIDTH = 800;
 pub const WINDOW_HEIGHT = 800;
 pub const WINDOW_RESIZABLE = true;
 pub const WINDOW_SWAP_INT = 1;
-pub const WINDOW_CURSOR_MODE = glfw.Cursor.Mode.normal;
+// `normal` clamps getCursorPos at the window border, so a turn dead-stops there,
+// and it makes the raw mouse motion requested in window.zig a no-op.
+pub const WINDOW_CURSOR_MODE = glfw.Cursor.Mode.disabled;
 
 // OPENGL
 pub const OPENGL_MAJOR = 3;
@@ -53,6 +55,9 @@ pub const FOV_MAX = 120;
 pub const FOV_SENS: f32 = 1.0;
 
 pub const CAM_SENS = 0.002;
+// |forward.y| past this stops the pitch, keeping the camera just short of
+// straight up/down. sin(89°).
+pub const CAM_PITCH_LIMIT: f32 = 0.9998;
 
 pub const CAM_SPEED_DEF = glm.Vec3{ .x = 7.5, .y = 3, .z = 7.5 };
 const CAM_SPEED_MOD_DEF: f32 = 0.25;

@@ -247,12 +247,15 @@ pub const Quaternion = struct {
         };
     }
 
+    /// Vector part first, scalar last: (i, j, k, w).
+    /// This is the layout GLSL expects, so `rotate()` in the shaders can read
+    /// the axis as `q.xyz` and the angle term as `q.w`.
     pub fn toVec4(self: Self) Vec(4) {
         return .{
-            .x = self.w,
-            .y = self.i,
-            .z = self.j,
-            .w = self.k,
+            .x = self.i,
+            .y = self.j,
+            .z = self.k,
+            .w = self.w,
         };
     }
 };
