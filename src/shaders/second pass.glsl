@@ -10,7 +10,7 @@ layout (std140) uniform FrameData {
 uniform sampler2D depth_sampler;
 
 #define RESOLUTION vec2(800, 800)
-#define RATIO 1
+#define RATIO 1.0
 
 // - RENDERING PARAMS
 #define HIT_DISTANCE 0.0001
@@ -21,8 +21,8 @@ uniform sampler2D depth_sampler;
 #define REFLECT_DISPLACMENT 0.01
 
 // - DEBUG PARAMS
-#define DEBUG_TEX
-// #define DEBUG_SKIP_DEPTH_TEX
+// #define DEBUG_TEX
+#define DEBUG_SKIP_DEPTH_TEX
 // #define DEBUG_BOUNCE 0
 // #define DEBUG_DEPTH
 // #define DEBUG_STEPS

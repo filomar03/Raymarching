@@ -94,7 +94,7 @@ const OpenGL = struct {
             self.id = gl.createShader(@intFromEnum(shader_type));
             if (self.id == 0) return OpenGL.Error.ResourceCreation;
 
-            gl.shaderSource(self.id, 1, @ptrCast(&self.code), null);
+            gl.shaderSource(self.id, 1, @ptrCast(&self.code), @ptrCast(&@as(c_int, @intCast(self.code.len))));
 
             var shader_compiled: gl.Int = undefined;
             gl.compileShader(self.id);
@@ -332,9 +332,9 @@ const OpenGL = struct {
         gl.deleteProgram(self.programs[0].id);
         gl.deleteProgram(self.programs[1].id);
         // framebuffer
-        gl.deleteFramebuffers(1, self.frame_buffer);
+        gl.deleteFramebuffers(1, &self.frame_buffer);
         // texture
-        gl.deleteTextures(1, self.texture);
+        gl.deleteTextures(1, &self.texture);
 
         // anche codice shader in mem CPU
         allocator.free(self.shaders.vertex.code);

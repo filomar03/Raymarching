@@ -9,7 +9,7 @@ layout (std140) uniform FrameData {
 
 // - RENDERING PARAMS
 #define RESOLUTION vec2(800 / 3, 800 / 3)
-#define RATIO 1
+#define RATIO 1.0
 #define MAX_STEP 1000
 #define HIT_DISTANCE 0.001
 #define MAX_TRAVEL 30.0
@@ -30,7 +30,7 @@ float coneMarch(vec3 p, vec3 ray) {
 
     float rad_per_pixel = radians(fov) / (2 * RESOLUTION.y);
     float depth_pixel_size_ratio = tan(rad_per_pixel);
-    float pixel_diag = sqrt(1 + RATIO * RATIO);
+    float pixel_diag = sqrt(1.0 + RATIO * RATIO);
 
     while (step < MAX_STEP) {
         float distance = map(p);

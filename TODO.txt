@@ -1,8 +1,6 @@
 implementare:
 far compilare
-provare ad invertire ordine rotazione
-togliere context da opengl state e salvare direttamente le dimensioni del fb
-shader come interfaccia (vtable anyopaque) in modo che ogni i 2 tipi possano avere le loro define custom
+shader come interfaccia e metodi per facilitare aggiunta righe e ricompilaizone a runtime (vtable anyopaque) in modo che ogni i 2 tipi possano avere le loro define custom
 possibilita di ricompilare singola shader, potenzialmente in modo automatico con observer, oppure mettere tutto in ubo (potenzialmente anche qua con observer)
 aggiornare a opengl 4.6
 debug callback
@@ -19,8 +17,8 @@ ray packing per i riflessi (praticamente si tratta di unire i punti e i raggi de
 gestire scene oggetti non hardcoded
 
 fix:
-leak vertex code perche prento [:0]u8 e la converto in []u8 e si perde il byte della sentinel
+fixare ubo rotto, perche se hardcodiamo valori ubo nella shader va
+ficare rotazione
 stringa errore compilazione shader (stampare fino a \0)
-togliere lo \0 finale dalle string literal
 sistemare pin meno sporgente dai bordi del pistone (rientrante rispetto al pistone)
 sistemare asta che connette pistone e conrod piu in alto
