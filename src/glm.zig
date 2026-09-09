@@ -1,8 +1,9 @@
 const std = @import("std");
 const math = std.math;
 
-const EPS = 1e-6;
-pub inline fn approxEq(a: f32, b: f32) bool {
+pub const EPS = 1e-6;
+
+inline fn approxEq(a: f32, b: f32) bool { // inline non dovrebbe avere parametri comptime?
     return std.math.approxEqAbs(f32, a, b, EPS);
 }
 
@@ -243,6 +244,18 @@ pub const Quaternion = struct {
             .x = self.i,
             .y = self.j,
             .z = self.k,
+        };
+    }
+
+    /// Vector part first, scalar last: (i, j, k, w).
+    /// This is the layout GLSL expects, so `rotate()` in the shaders can read
+    /// the axis as `q.xyz` and the angle term as `q.w`.
+    pub fn toVec4(self: Self) Vec(4) {
+        return .{
+            .x = self.i,
+            .y = self.j,
+            .z = self.k,
+            .w = self.w,
         };
     }
 };

@@ -1,0 +1,85 @@
+const glfw = @import("zglfw");
+const gl = @import("zopengl").bindings;
+const glm = @import("glm.zig");
+
+// WINDOW
+pub const WINDOW_TITLE = "Raymarching demo";
+pub const WINDOW_WIDTH = 800;
+pub const WINDOW_HEIGHT = 800;
+pub const WINDOW_RESIZABLE = true;
+pub const WINDOW_SWAP_INT = 1;
+// `normal` clamps getCursorPos at the window border, so a turn dead-stops there,
+// and it makes the raw mouse motion requested in window.zig a no-op.
+pub const WINDOW_CURSOR_MODE = glfw.Cursor.Mode.disabled;
+
+// OPENGL
+pub const OPENGL_MAJOR = 3;
+pub const OPENGL_MINOR = 3;
+
+
+// PIPELINE
+pub const VERT_SIZE = 3;
+pub const CANVAS_VERTS = [_]gl.Float{
+    -1.0, -1.0, -1.0,
+    -1.0,  1.0, -1.0,
+     1.0,  1.0, -1.0,
+
+    -1.0, -1.0, -1.0,
+     1.0,  1.0, -1.0,
+     1.0, -1.0, -1.0,
+};
+
+pub const RES_REDUCTION = 3;
+
+// WORLD REFERENCE
+pub const X_AXIS: glm.Vec3 = .{
+    .x = 1,
+    .y = 0,
+    .z = 0,
+};
+pub const Y_AXIS: glm.Vec3 = .{
+    .x = 0,
+    .y = 1,
+    .z = 0,
+};
+pub const Z_AXIS: glm.Vec3 = .{
+    .x = 0,
+    .y = 0,
+    .z = 1,
+};
+
+// CAMERA
+pub const CAM_DEF_FOV = 60;
+pub const FOV_MIN = 30;
+pub const FOV_MAX = 120;
+pub const FOV_SENS: f32 = 1.0;
+
+pub const CAM_SENS = 0.002;
+// |forward.y| past this stops the pitch, keeping the camera just short of
+// straight up/down. sin(89°).
+pub const CAM_PITCH_LIMIT: f32 = 0.9998;
+
+pub const CAM_SPEED_DEF = glm.Vec3{ .x = 7.5, .y = 3, .z = 7.5 };
+const CAM_SPEED_MOD_DEF: f32 = 0.25;
+
+// PROFILING
+pub const FRAMETIME_RBUF_DIM = 2048; // power of 2 to enable modulo optimization (& insted of %)
+
+// DEBUG
+pub const DBG_UPDATE_INTERVAL: f32 = 0.5;
+
+// SHADERS
+pub const MAX_SHADER_SIZE = 1024 * 1024; // 1 Mib
+pub const INFO_LOG_MAX = 512;
+
+pub const SHADER_DIR = "src/shaders/";
+pub const VERTEX_FILE = "vertex.glsl";
+pub const SCENE_FILE = "scene.glsl";
+pub const PASS1_FILE = "first pass.glsl";
+pub const PASS2_FILE = "second pass.glsl";
+pub const GEN_FRAG1 = "generated frag1.glsl";
+pub const GEN_FRAG2 = "generated frag2.glsl";
+
+pub const GLSL_VERSION = "#version 330 core\n";
+pub const PASS1_DEFINE = "#define FIRST_PASS\n";
+pub const PASS2_DEFINE = "#define SECOND_PASS\n";

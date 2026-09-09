@@ -1,3 +1,24 @@
 implementare:
-rendering multi passo
-migliorare errori e gestione
+far compilare
+shader come interfaccia e metodi per facilitare aggiunta righe e ricompilaizone a runtime (vtable anyopaque) in modo che ogni i 2 tipi possano avere le loro define custom
+possibilita di ricompilare singola shader, potenzialmente in modo automatico con observer, oppure mettere tutto in ubo (potenzialmente anche qua con observer)
+aggiornare a opengl 4.6
+debug callback
+convertire ubo in ssbo
+define aggiunti nelle shader dinamicamente in modo da essere modificabili
+invece che avere 2 fragment facciamo primo passo in vertex cosi da avere un solo program ( da provare su un altro branch)
+spostare su CPU i calcoli non necessari
+modificare cambio velocita (logaritmica rispetto ad 2 asisntoti)
+visualizzazione informazioni come testo rasterizzato sulla finestra invece che in console
+possibilita di cambiare visualizzazione a runtime e alcuni parametri (come rimbalzi)
+ottimizzare la shader
+provare vari parametri e testare performance (float vs double)
+ray packing per i riflessi (praticamente si tratta di unire i punti e i raggi dei riflessi da calcolare, metterli in un buffer e farlo in un passo diverso in modo da non stallare la wavefront calcolandoli al momento)
+gestire scene oggetti non hardcoded
+
+fix:
+fixare ubo rotto, perche se hardcodiamo valori ubo nella shader va
+ficare rotazione
+stringa errore compilazione shader (stampare fino a \0)
+sistemare pin meno sporgente dai bordi del pistone (rientrante rispetto al pistone)
+sistemare asta che connette pistone e conrod piu in alto
