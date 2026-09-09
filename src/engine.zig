@@ -301,21 +301,21 @@ const OpenGL = struct {
     }
 
     pub fn firstPass(self: *Self) void {
-        gl.bindFramebuffer(gl.FRAMEBUFFER, 0);
-        gl.useProgram(self.programs[0].id);
-        gl.viewport(0, 0, self.fb_size[0], self.fb_size[1]);
-        gl.drawArrays(gl.TRIANGLES, 0, consts.CANVAS_VERTS.len / consts.VERT_SIZE);
-    }
-
-    pub fn secondPass(self: *Self) void {
         gl.bindFramebuffer(gl.FRAMEBUFFER, self.frame_buffer);
-        gl.useProgram(self.programs[1].id);
+        gl.useProgram(self.programs[0].id);
         gl.viewport(
             0,
             0,
             @divFloor(self.fb_size[0], consts.RES_REDUCTION),
             @divFloor(self.fb_size[1], consts.RES_REDUCTION)
         );
+        gl.drawArrays(gl.TRIANGLES, 0, consts.CANVAS_VERTS.len / consts.VERT_SIZE);
+    }
+
+    pub fn secondPass(self: *Self) void {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, 0);
+        gl.useProgram(self.programs[1].id);
+        gl.viewport(0, 0, self.fb_size[0], self.fb_size[1]);
         gl.drawArrays(gl.TRIANGLES, 0, consts.CANVAS_VERTS.len / consts.VERT_SIZE);
     }
 
